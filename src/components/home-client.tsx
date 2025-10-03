@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import UploadZone from "@/components/upload-zone"
 import RecipeCard, { type Recipe } from "@/components/recipe-card"
 import { Progress } from "@/components/ui/progress"
+import ManualInput from "@/components/manual-input"
 
 export default function HomeClient() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
@@ -15,7 +16,7 @@ export default function HomeClient() {
     if (loading) {
       setProgress(10)
       timerRef.current = setInterval(() => {
-        setProgress((p) => (p < 90 ? p + 8 : p)) // до 90%, остальное — после ответа
+        setProgress((p) => (p < 90 ? p + 8 : p))
       }, 150)
     } else {
       if (timerRef.current) clearInterval(timerRef.current)
@@ -25,18 +26,28 @@ export default function HomeClient() {
     }
   }, [loading])
 
-  async function handleImageSelected(file: File) {
+  async function requestRecipes(form: FormData) {
     setRecipes([])
     setLoading(true)
     try {
-      const form = new FormData()
-      form.append("image", file)
       const res = await fetch("/api/recipes", { method: "POST", body: form })
       const data = await res.json()
       setRecipes((data.recipes || []) as Recipe[])
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleImageSelected(file: File) {
+    const form = new FormData()
+    form.append("image", file)
+    await requestRecipes(form)
+  }
+
+  async function handleManualSubmit(text: string) {
+    const form = new FormData()
+    form.append("text", text)
+    await requestRecipes(form)
   }
 
   return (
@@ -46,11 +57,12 @@ export default function HomeClient() {
           Что приготовить?
         </h1>
         <p className="mt-3 text-muted-foreground">
-          Загрузите фото продуктов — покажем 3 идеи (пока заглушки).
+          Загрузите фото или введите продукты вручную — покажем 3 идеи.
         </p>
 
         <div className="mt-8">
           <UploadZone onFileSelected={handleImageSelected} />
+          <ManualInput onSubmit={handleManualSubmit} />
         </div>
 
         {loading && (
