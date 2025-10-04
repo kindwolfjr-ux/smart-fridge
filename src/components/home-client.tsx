@@ -1,53 +1,56 @@
-"use client"
+"use client";
 
-import { useEffect, useRef, useState } from "react"
-import UploadZone from "@/components/upload-zone"
-import RecipeCard, { type Recipe } from "@/components/recipe-card"
-import { Progress } from "@/components/ui/progress"
-import ManualInput from "@/components/manual-input"
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import UploadZone from "@/components/ui/upload-zone";
+import ManualInput from "@/components/manual-input";
+import { Progress } from "@/components/ui/progress";
 
 export default function HomeClient() {
-  const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [loading, setLoading] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const router = useRouter();
+
+  // Можно оставить индикатор для других действий на главной (не обязателен)
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (loading) {
-      setProgress(10)
+      setProgress(10);
       timerRef.current = setInterval(() => {
-        setProgress((p) => (p < 90 ? p + 8 : p))
-      }, 150)
+        setProgress((p) => (p < 90 ? p + 8 : p));
+      }, 150);
     } else {
-      if (timerRef.current) clearInterval(timerRef.current)
-      setProgress(100)
-      const t = setTimeout(() => setProgress(0), 300)
-      return () => clearTimeout(t)
+      if (timerRef.current) clearInterval(timerRef.current);
+      setProgress(100);
+      const t = setTimeout(() => setProgress(0), 300);
+      return () => clearTimeout(t);
     }
-  }, [loading])
+  }, [loading]);
 
-  async function requestRecipes(form: FormData) {
-    setRecipes([])
-    setLoading(true)
-    try {
-      const res = await fetch("/api/recipes", { method: "POST", body: form })
-      const data = await res.json()
-      setRecipes((data.recipes || []) as Recipe[])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleImageSelected(file: File) {
-    const form = new FormData()
-    form.append("image", file)
-    await requestRecipes(form)
-  }
-
+  // Ручной ввод: переходим на экран подтверждения
   async function handleManualSubmit(text: string) {
-    const form = new FormData()
-    form.append("text", text)
-    await requestRecipes(form)
+    const items = text
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (items.length === 0) return;
+
+    // Можно положить и в sessionStorage, но confirm уже умеет читать ?items
+    const query = encodeURIComponent(items.join(","));
+    router.push(`/confirm?items=${query}`);
+
+    // (необязательно) метрика ручного сабмита
+    fetch("/api/metrics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        stage: "manual_submit",
+        count_total: items.length,
+        count_selected: items.length,
+      }),
+    }).catch(() => {});
   }
 
   return (
@@ -60,26 +63,21 @@ export default function HomeClient() {
           Загрузите фото или введите продукты вручную — покажем 3 идеи.
         </p>
 
-        <div className="mt-8">
-          <UploadZone onFileSelected={handleImageSelected} />
+        <div className="mt-8 space-y-6">
+          {/* Фото: компонент сам вызывает /api/scan и перекидывает на /confirm */}
+          <UploadZone />
+
+          {/* Ручной ввод: уходит на /confirm?items=... */}
           <ManualInput onSubmit={handleManualSubmit} />
         </div>
 
         {loading && (
           <div className="mt-8">
             <Progress value={progress} />
-            <p className="mt-2 text-sm text-muted-foreground">Ищем рецепты…</p>
-          </div>
-        )}
-
-        {!loading && recipes.length > 0 && (
-          <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
-            {recipes.map((r) => (
-              <RecipeCard key={r.id} recipe={r} />
-            ))}
+            <p className="mt-2 text-sm text-muted-foreground">Обрабатываем…</p>
           </div>
         )}
       </section>
     </main>
-  )
+  );
 }
