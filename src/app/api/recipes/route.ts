@@ -1,44 +1,27 @@
+// app/api/recipes/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { BASIC_ALLOWED, canonicalizeList } from "@/lib/food-normalize";
 import { buildAllowed } from "@/lib/recipes-helpers";
 import { sanitizeResponse } from "@/lib/recipes-sanitize";
 import { type RecipesResponse } from "@/types/recipe";
-
-// === ваш клиент OpenAI (пример) ===
 import OpenAI from "openai";
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-// KV (опционально)
-const useKV = !!process.env.KV_URL && !!process.env.KV_REST_API_TOKEN;
-const KV_NAMESPACE = "recipes_v2";
-
-export const runtime = "edge"; // если используете edge
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
-const SYSTEM_PROMPT = /* из секции 2.3 */ `
-... тот самый SYSTEM_PROMPT ...
-`;
+// === KV via REST (работает на Edge) ===
+const KV_URL = process.env.KV_REST_API_URL;      // <— правильные названия
+const KV_TOKEN = process.env.KV_REST_API_TOKEN;
+const useKV = !!KV_URL && !!KV_TOKEN;
+const KV_NAMESPACE = "recipes_v3";
 
-function userPrompt(allowed: string[], portionDefault = "2 порции"): string {
-  // из секции 2.3
-  return `
-Дано:
-- Разрешенные ингредиенты (allowed): ${JSON.stringify(allowed)}
-- Порции по умолчанию: "${portionDefault}"
-
-Сгенерируй 3 рецепта, строго следуя схеме. Помни:
-- Никаких посторонних продуктов за пределами allowed + (соль, перец, масло, вода).
-- Реальные шаги (вода, соль, время, температура), 3–8 шагов.
-- Кол-ва и единицы: целые числа, "г|мл|ст. л.|ч. л.".
-
-Верни ТОЛЬКО JSON по схеме, без текста.`;
-}
-
-// простая KV-обертка (опционально)
 async function kvGet(key: string): Promise<string | null> {
   if (!useKV) return null;
-  const res = await fetch(`${process.env.KV_URL}/get/${KV_NAMESPACE}:${key}`, {
-    headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
+  const url = `${KV_URL}/get/${encodeURIComponent(`${KV_NAMESPACE}:${key}`)}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${KV_TOKEN}` },
     cache: "no-store",
   });
   if (!res.ok) return null;
@@ -48,32 +31,51 @@ async function kvGet(key: string): Promise<string | null> {
 
 async function kvSet(key: string, value: string, ttlSec = 60 * 60 * 24) {
   if (!useKV) return;
-  await fetch(`${process.env.KV_URL}/set/${KV_NAMESPACE}:${key}`, {
+  // Upstash/Vercel KV поддерживает EX через /set/{key}/{value}?EX=ttl
+  const url = `${KV_URL}/set/${encodeURIComponent(`${KV_NAMESPACE}:${key}`)}/${encodeURIComponent(value)}?EX=${ttlSec}`;
+  await fetch(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ value, expiration: Math.floor(Date.now() / 1000) + ttlSec }),
+    headers: { Authorization: `Bearer ${KV_TOKEN}` },
   }).catch(() => {});
+}
+
+const SYSTEM_PROMPT = `
+Ты кулинарный ассистент. Верни СТРОГО ЧИСТЫЙ JSON по схеме:
+{"recipes":[{"title":"string","ingredients":["string"],"steps":["string"],"time":"string","servings":"string"}]}
+— Только продукты из allowed + соль/перец/масло/вода.
+— 3 рецепта, каждый с 3–8 реальными шагами (время, огонь, когда солить/кипятить).
+— Порции и время указывать явно.
+— Никакого текста вне JSON.
+`;
+
+
+function userPrompt(allowed: string[], portionDefault = "2 порции"): string {
+  return [
+    `Allowed: ${JSON.stringify(allowed)}`,
+    `Servings default: ${portionDefault}`,
+    `Сгенерируй 3 подробных рецепта по строгой схеме выше.`,
+  ].join("\n");
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const url = new URL(req.url);
+    const debug = url.searchParams.get("debug") === "1";
+    const noCache = url.searchParams.get("nocache") === "1";
+
     const body = await req.json();
     const userItems: string[] = Array.isArray(body?.products) ? body.products : [];
     const canonUser = canonicalizeList(userItems);
 
-    // allowed = userItems ∪ базовые
     const allowedSet = buildAllowed(userItems);
     const allowed = Array.from(allowedSet);
 
-    // cacheKey: отсортированный список userItems
-    const cacheKey = `v2::${canonUser.sort().join("|")}`;
-    const cached = await kvGet(cacheKey);
+    // новый namespace — чтобы не ловить старый пустой кэш
+    const cacheKey = `v4::${canonUser.sort().join("|")}`;
+    const cached = !noCache ? await kvGet(cacheKey) : null;
     if (cached) {
       const parsed = JSON.parse(cached);
-      return NextResponse.json(parsed satisfies RecipesResponse);
+      return NextResponse.json(debug ? { ...parsed, _from: "cache", cacheKey } : parsed);
     }
 
     // Вызов модели
@@ -82,24 +84,51 @@ export async function POST(req: NextRequest) {
       temperature: 0.6,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt(allowed) },
+        { role: "user", content: [
+            `Allowed: ${JSON.stringify(allowed)}`,
+            `Servings default: 2 порции`,
+            `Сгенерируй 3 рецепта строго по схеме.`
+          ].join("\n")
+        },
       ],
       response_format: { type: "json_object" },
     });
 
-    const rawText = completion.choices[0]?.message?.content ?? "{}";
-    let rawJson: unknown;
-    try { rawJson = JSON.parse(rawText); } catch { rawJson = {}; }
+    const llmText = completion.choices[0]?.message?.content ?? "{}";
 
-    // Санитация/валидирование/пост-обработка
-    const clean = sanitizeResponse(rawJson, new Set(allowed));
+    // Пытаемся распарсить как {"recipes":[...]}
+    let out: any = {};
+    try { out = JSON.parse(llmText); } catch {}
+    let recipes: any[] = Array.isArray(out?.recipes) ? out.recipes : [];
 
-    // Кэшируем
-    await kvSet(cacheKey, JSON.stringify(clean));
+    // Если пусто — даём фолбэк (чтобы UI не остался с пустотой)
+    if (!recipes || recipes.length === 0) {
+      recipes = [{
+        title: "Омлет с помидорами и грибами",
+        ingredients: ["яйца 3 шт", "помидоры 150 г", "шампиньоны 120 г", "лук 60 г", "масло 1 ст. л.", "соль", "перец"],
+        steps: [
+          "Нарежьте лук, помидоры и грибы.",
+          "Разогрейте сковороду с маслом, обжарьте лук 3–4 мин.",
+          "Добавьте грибы, жарьте 5–6 мин до испарения влаги.",
+          "Добавьте помидоры, посолите, готовьте 2 мин.",
+          "Взбейте яйца с щепоткой соли, вылейте на сковороду и готовьте 3–4 мин под крышкой."
+        ],
+        time: "15–20 мин",
+        servings: "2 порции",
+      }];
+      // не кэшируем фолбэк
+      const resp = { recipes };
+      return NextResponse.json(debug ? { ...resp, _from: "fallback", llmText } : resp);
+    }
 
-    return NextResponse.json(clean);
+    // Кэшируем только непустой результат
+    const resp = { recipes };
+    await kvSet(cacheKey, JSON.stringify(resp));
+
+    return NextResponse.json(debug ? { ...resp, llmText } : resp);
   } catch (e) {
     console.error("/api/recipes error", e);
     return NextResponse.json({ recipes: [] }, { status: 500 });
   }
 }
+
