@@ -75,8 +75,39 @@ function userPrompt(allowed: string[], portionDefault = "2 порции"): strin
 export async function POST(req: NextRequest) {
   try {
     const url = new URL(req.url);
+    const marker = "recipes-build-006";
+if (url.searchParams.get("tag") === "whoami") {
+  return NextResponse.json({ ok: true, marker });
+}
     const debug = url.searchParams.get("debug") === "1";
     const noCache = url.searchParams.get("nocache") === "1";
+        // === временный форс-фолбэк, чтобы проверить работу API ===
+    if (url.searchParams.get("force") === "fallback") {
+      const recipes = [{
+        title: "Омлет с помидорами и грибами",
+        ingredients: [
+          "яйца 3 шт",
+          "помидоры 150 г",
+          "шампиньоны 120 г",
+          "лук 60 г",
+          "масло 1 ст. л.",
+          "соль",
+          "перец"
+        ],
+        steps: [
+          "Нарежьте лук, помидоры и грибы.",
+          "Разогрейте сковороду с маслом, обжарьте лук 3–4 мин.",
+          "Добавьте грибы, жарьте 5–6 мин до испарения влаги.",
+          "Добавьте помидоры, посолите, готовьте 2 мин.",
+          "Взбейте яйца, вылейте на сковороду и готовьте 3–4 мин под крышкой."
+        ],
+        time: "15–20 мин",
+        servings: "2 порции"
+      }];
+      const resp = { recipes: normalizeRecipes(recipes) };
+      return NextResponse.json({ ...resp, _from: "forced-fallback" });
+    }
+
 
     const body = await req.json();
     const userItems: string[] = Array.isArray(body?.products) ? body.products : [];
