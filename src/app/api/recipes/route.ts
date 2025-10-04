@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BASIC_ALLOWED, canonicalizeList } from "@/lib/food-normalize";
 import { buildAllowed } from "@/lib/recipes-helpers";
-import { sanitizeResponse } from "@/lib/recipes-sanitize";
 import { type RecipesResponse } from "@/types/recipe";
 import OpenAI from "openai";
 
@@ -12,7 +11,7 @@ export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 // === KV via REST (работает на Edge) ===
-const KV_URL = process.env.KV_REST_API_URL;      // <— правильные названия
+const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const useKV = !!KV_URL && !!KV_TOKEN;
 const KV_NAMESPACE = "recipes_v3";
@@ -31,7 +30,6 @@ async function kvGet(key: string): Promise<string | null> {
 
 async function kvSet(key: string, value: string, ttlSec = 60 * 60 * 24) {
   if (!useKV) return;
-  // Upstash/Vercel KV поддерживает EX через /set/{key}/{value}?EX=ttl
   const url = `${KV_URL}/set/${encodeURIComponent(`${KV_NAMESPACE}:${key}`)}/${encodeURIComponent(value)}?EX=${ttlSec}`;
   await fetch(url, {
     method: "POST",
@@ -48,6 +46,23 @@ const SYSTEM_PROMPT = `
 — Никакого текста вне JSON.
 `;
 
+// --- функция нормализации рецептов ---
+function normalizeRecipes(recipes: any[]) {
+  return (recipes ?? []).map((r: any) => ({
+    title: r.title ?? r.name ?? "Без названия",
+    time: r.time ?? r.duration ?? "",
+    servings: r.servings ?? r.portions ?? "2 порции",
+    steps: (r.steps ?? [])
+      .map((st: any) => (typeof st === "string" ? st : (st?.text ?? st?.step ?? "")))
+      .filter(Boolean),
+    ingredients: (r.ingredients ?? []).map((it: any) => {
+      if (typeof it === "string") return it.trim();
+      const name = it?.name ?? it?.title ?? it?.ingredient ?? it?.item ?? "";
+      const qty  = it?.qty  ?? it?.quantity ?? it?.amount ?? it?.count ?? "";
+      return [name, qty].filter(Boolean).join(" ").trim();
+    }),
+  }));
+}
 
 function userPrompt(allowed: string[], portionDefault = "2 порции"): string {
   return [
@@ -70,7 +85,6 @@ export async function POST(req: NextRequest) {
     const allowedSet = buildAllowed(userItems);
     const allowed = Array.from(allowedSet);
 
-    // новый namespace — чтобы не ловить старый пустой кэш
     const cacheKey = `v4::${canonUser.sort().join("|")}`;
     const cached = !noCache ? await kvGet(cacheKey) : null;
     if (cached) {
@@ -84,24 +98,17 @@ export async function POST(req: NextRequest) {
       temperature: 0.6,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: [
-            `Allowed: ${JSON.stringify(allowed)}`,
-            `Servings default: 2 порции`,
-            `Сгенерируй 3 рецепта строго по схеме.`
-          ].join("\n")
-        },
+        { role: "user", content: userPrompt(allowed) },
       ],
       response_format: { type: "json_object" },
     });
 
     const llmText = completion.choices[0]?.message?.content ?? "{}";
-
-    // Пытаемся распарсить как {"recipes":[...]}
     let out: any = {};
     try { out = JSON.parse(llmText); } catch {}
     let recipes: any[] = Array.isArray(out?.recipes) ? out.recipes : [];
 
-    // Если пусто — даём фолбэк (чтобы UI не остался с пустотой)
+    // Если пусто — даём фолбэк
     if (!recipes || recipes.length === 0) {
       recipes = [{
         title: "Омлет с помидорами и грибами",
@@ -116,13 +123,12 @@ export async function POST(req: NextRequest) {
         time: "15–20 мин",
         servings: "2 порции",
       }];
-      // не кэшируем фолбэк
-      const resp = { recipes };
+      const resp = { recipes: normalizeRecipes(recipes) };
       return NextResponse.json(debug ? { ...resp, _from: "fallback", llmText } : resp);
     }
 
     // Кэшируем только непустой результат
-    const resp = { recipes };
+    const resp = { recipes: normalizeRecipes(recipes) };
     await kvSet(cacheKey, JSON.stringify(resp));
 
     return NextResponse.json(debug ? { ...resp, llmText } : resp);
@@ -131,4 +137,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ recipes: [] }, { status: 500 });
   }
 }
-
