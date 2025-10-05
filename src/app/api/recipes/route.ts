@@ -54,11 +54,17 @@ function sampleRecipes(products: string[]): Recipe[] {
 }
 
 export async function GET() {
-  return Response.json(
-    { ok: true, note: 'Используй POST с { products: string[] }' },
-    { headers: { 'Cache-Control': 'no-store' } }
+  return new Response(
+    JSON.stringify({ ok: true, note: 'Используй POST с { products: string[] }' }),
+    {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store'
+      }
+    }
   );
 }
+
 
 export async function POST(req: Request) {
   // Считываем тело максимально терпимо к формату
