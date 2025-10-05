@@ -1,39 +1,52 @@
-export type Unit = "г" | "мл" | "ст. л." | "ч. л.";
+// src/types/recipe.ts
 
-export interface RecipeStep {
-  order: number;
-  action: string;
-  detail: string;
-  duration_min?: number;
-  temperature_c?: number;
-}
+export type Unit =
+  | "г"
+  | "мл"
+  | "шт"
+  | "щепотка"
+  | "ст.л."
+  | "ч.л."
+  | "по вкусу"
+  | string;
 
-export interface IngredientItem {
+export interface IngredientDto {
   name: string;
-  amount: number;
-  unit: Unit;
+  amount?: number | string;
+  unit?: Unit;
   note?: string;
 }
 
-export interface Nutrition {
-  kcal: number;
-  protein_g: number;
-  fat_g: number;
-  carb_g: number;
+export interface StepDto {
+  order: number;
+  action: string;
+  detail?: string;
+  duration_min?: number;
 }
 
 export interface RecipeDto {
+  /** Уникальный идентификатор (используется для key в React) */
   id: string;
+
+  /** Название рецепта */
   title: string;
-  portion: string;
-  time_min: number;
-  equipment: string[];
-  ingredients: IngredientItem[];
-  steps: RecipeStep[];
-  tips?: string[];
-  nutrition?: Nutrition;
+
+  /** Количество порций */
+  portion?: string;
+
+  /** Время приготовления (в минутах) */
+  time_min?: number;
+
+  /** Список ингредиентов */
+  ingredients: IngredientDto[];
+
+  /** Шаги приготовления */
+  steps: StepDto[];
 }
 
 export interface RecipesResponse {
+  ok?: boolean;
+  error?: string;
   recipes: RecipeDto[];
+  trace?: unknown;
 }
