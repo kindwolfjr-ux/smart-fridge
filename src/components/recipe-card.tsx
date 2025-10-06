@@ -1,65 +1,61 @@
 "use client";
 import { useState } from "react";
-import type { RecipeDto } from "@/types/recipe";
+import type { RecipeDto, IngredientDto, StepDto } from "@/types/recipe";
 
-export default function RecipeCard({ recipe }: { recipe: RecipeDto }) {
+export default function RecipeCard({ recipe }: { recipe: RecipeDto & { lead?: string } }) {
   const [open, setOpen] = useState(false);
 
   const copyRecipe = () => {
     const text = [
-      `${recipe.title} (${recipe.portion}, ~${recipe.time_min} мин)\n`,
-      `\n🧂 Ингредиенты:`,
+      `${recipe.title} (${recipe.portion ?? "1 порция"}, ~${recipe.time_min ?? 15} мин)\n`,
+      "🧾 Ингредиенты:",
       ...recipe.ingredients.map(
-        (i) =>
-          `- ${i.name} — ${i.amount} ${i.unit}${i.note ? ` (${i.note})` : ""}`
+        (i: IngredientDto) =>
+          `- ${i.name} — ${i.amount ?? ""} ${i.unit ?? ""}${i.note ? ` (${i.note})` : ""}`
       ),
-      `\n👩‍🍳 Шаги:`,
+      "\n🧭 Шаги:",
       ...recipe.steps.map(
-        (s) =>
-          `${s.order}. ${s.action}: ${s.detail}${
-            s.duration_min ? ` (~${s.duration_min} мин)` : ""
-          }`
+        (s: StepDto) =>
+          `${s.order}. ${s.action}: ${s.detail ?? ""}${s.duration_min ? ` (~${s.duration_min} мин)` : ""}`
       ),
     ].join("\n");
-    navigator.clipboard.writeText(text);
+
+    navigator.clipboard?.writeText(text).catch(() => {});
   };
 
   return (
-    <div className="rounded-2xl border p-4 space-y-3 shadow-sm bg-white">
-      <div className="flex items-center justify-between">
+    <div className="p-4 rounded-2xl shadow bg-white space-y-2">
+      {/* Заголовок */}
+      <div className="flex justify-between items-start">
         <h3 className="text-lg font-semibold">{recipe.title}</h3>
         <button
           onClick={copyRecipe}
-          className="text-xs text-gray-500 hover:text-black"
+          className="text-sm text-blue-600 hover:underline"
+          title="Скопировать рецепт"
         >
-          📋 Скопировать
+          📋
         </button>
       </div>
 
-      {(recipe.time_min || recipe.portion) && (
-        <p className="text-xs text-gray-500">
-          {recipe.time_min ? `~${recipe.time_min} мин` : ""}
-          {recipe.time_min && recipe.portion ? " • " : ""}
-          {recipe.portion || ""}
-        </p>
+      {/* lead — вводный абзац */}
+      {recipe.lead && (
+        <p className="text-sm text-muted-foreground mb-2">{recipe.lead}</p>
       )}
 
-      {/* Инвентарь */}
-      {recipe.equipment?.length > 0 && (
-        <p className="text-sm text-gray-600">
-          <span className="text-gray-500">Инвентарь:</span>{" "}
-          {recipe.equipment.join(", ")}
-        </p>
-      )}
+      {/* Время и порции */}
+      <p className="text-sm text-gray-500">
+        ~{recipe.time_min ?? 15} мин • {recipe.portion ?? "1 порция"}
+      </p>
 
       {/* Ингредиенты */}
-      <div className="text-sm text-gray-700">
-        <span className="text-gray-500">Ингредиенты:</span>
-        <ul className="mt-1 list-disc pl-5 space-y-0.5">
-          {recipe.ingredients.map((i, idx) => (
+      <div className="mt-2">
+        <p className="font-medium">Ингредиенты:</p>
+        <ul className="list-disc list-inside text-sm text-gray-700">
+          {recipe.ingredients.map((i: IngredientDto, idx) => (
             <li key={idx}>
-              {i.name} — {i.amount} {i.unit}
-              {i.note ? ` (${i.note})` : ""}
+              {i.name}
+              {i.amount && ` — ${i.amount}`}
+              {i.unit && ` ${i.unit}`}
             </li>
           ))}
         </ul>
@@ -67,37 +63,26 @@ export default function RecipeCard({ recipe }: { recipe: RecipeDto }) {
 
       {/* Кнопка раскрытия шагов */}
       <button
-        onClick={() => setOpen((v) => !v)}
-        className="mt-2 inline-flex items-center justify-center rounded-xl bg-black px-3 py-2 text-sm text-white hover:bg-black/90"
+        onClick={() => setOpen(!open)}
+        className="mt-3 bg-gray-900 text-white text-sm px-3 py-1.5 rounded-md"
       >
         {open ? "Скрыть шаги" : "Показать шаги"}
       </button>
 
       {/* Шаги */}
-      {open && recipe.steps?.length > 0 && (
-        <ol className="mt-3 list-decimal pl-5 text-sm text-gray-800 space-y-1">
-          {recipe.steps.map((s) => (
+      {open && (
+        <ol className="list-decimal list-inside text-sm space-y-1 mt-2">
+          {recipe.steps.map((s: StepDto) => (
             <li key={s.order}>
-              <span className="font-medium">{s.action}</span> — {s.detail}{" "}
-              {s.duration_min ? (
-                <span className="text-gray-500">(~{s.duration_min} мин)</span>
-              ) : null}
+              <strong>{s.action}</strong>
+              {s.detail && ` — ${s.detail}`}
+              {s.duration_min && (
+                <span className="text-gray-500"> (~{s.duration_min} мин)</span>
+              )}
             </li>
           ))}
         </ol>
       )}
-
-      {/* Советы */}
-      {recipe.tips?.length ? (
-        <div className="mt-3 border-t pt-2 text-sm text-gray-600">
-          <span className="font-medium">Советы:</span>
-          <ul className="list-disc pl-5 mt-1 space-y-0.5">
-            {recipe.tips.map((t, i) => (
-              <li key={i}>{t}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </div>
   );
 }

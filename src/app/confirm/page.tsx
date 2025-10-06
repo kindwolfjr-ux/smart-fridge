@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import type { RecipeDto } from "@/types/recipe";
 
 export default function ConfirmPage() {
   const router = useRouter();
@@ -52,9 +53,20 @@ export default function ConfirmPage() {
 
     const data = await res.json();
 
+    // === ВАЖНО: приклеиваем lead к каждому рецепту по индексу ===
+    const withLead = (data.recipes ?? []).map((r: RecipeDto, i: number) => ({
+      ...r,
+      lead: data?.trace?.leads?.[i] ?? undefined,
+    }));
+
+    // сохраняем в том же формате, что и раньше ({ products, data }),
+    // но подменяем recipes на обогащённый массив
     sessionStorage.setItem(
       "recipes_payload",
-      JSON.stringify({ products: items, data })
+      JSON.stringify({
+        products: items,
+        data: { ...data, recipes: withLead },
+      })
     );
 
     router.push(`/recipes?items=${encodeURIComponent(items.join(","))}`);
@@ -97,7 +109,7 @@ export default function ConfirmPage() {
         />
         <button
           onClick={handleAdd}
-          className="rounded-lg bg-black text-white px-3 py-2 text-sm hover:bg-black/90"
+          className="rounded-lg bg-black text-white px-3 py-2 text-sm hover:bg黑/90"
         >
           Добавить
         </button>
