@@ -1,34 +1,40 @@
 import { Redis } from "@upstash/redis";
 
-export const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-});
-
-const CACHE_TTL = 60 * 60 * 24 * 7; // 7 дней
-
-export async function getCachedRecipes(cacheKey: string) {
-  try {
-    const data = await redis.get(`rc:${cacheKey}`);
-    return data ? (data as any[]) : null;
-  } catch (e) {
-    console.error("Ошибка при чтении из Redis:", e);
-    return null;
-  }
+let redis: ReturnType<typeof Redis.fromEnv> | null = null;
+try {
+  // будет работать, если заданы переменные окружения:
+  // UPSTASH_REDIS_REST_URL и UPSTASH_REDIS_REST_TOKEN
+  redis = Redis.fromEnv();
+} catch {
+  // локальный режим без Redis — используем in-memory Map (на Vercel в prod это НЕ сохранится)
 }
 
-export async function setCachedRecipes(cacheKey: string, recipes: any[]) {
-  try {
-    await redis.set(`rc:${cacheKey}`, recipes, { ex: CACHE_TTL });
-  } catch (e) {
-    console.error("Ошибка при записи в Redis:", e);
+const memory = new Map<string, any>();
+
+export async function cacheGet<T = any>(key: string): Promise<T | null> {
+  if (redis) {
+    const val = await redis.get<T>(key);
+    return (val as T) ?? null;
   }
+  return (memory.get(key) as T) ?? null;
 }
 
-export async function incMetric(name: "cache_hit" | "cache_miss") {
-  try {
-    await redis.incr(`metrics:${name}`);
-  } catch (e) {
-    console.error("Ошибка при обновлении метрики:", e);
+export async function cacheSet<T = any>(
+  key: string,
+  value: T,
+  ttlSeconds = 60 * 60 * 24 // 24h
+): Promise<void> {
+  if (redis) {
+    await redis.set(key, value, { ex: ttlSeconds });
+    return;
   }
+  memory.set(key, value);
+}
+
+export function makeRecipesKey(products: string[]) {
+  const norm = products
+    .map((x) => String(x).trim().toLowerCase())
+    .filter(Boolean)
+    .sort();
+  return `recipes:${norm.join("|")}`;
 }

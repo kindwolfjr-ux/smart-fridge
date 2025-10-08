@@ -1,6 +1,7 @@
 // src/app/api/recipes/route.ts
 import type { RecipeDto } from "@/types/recipe";
 import OpenAI from "openai";
+import { cacheGet, cacheSet, makeRecipesKey } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -186,6 +187,24 @@ export async function POST(req: Request) {
   const products = normalizeProducts((body as any)?.products);
   const base = products.length ? products : ["яйца", "лук", "шампиньоны"];
 
+  // ——— КЭШ: ключ строим из нормализованных продуктов (или base, если пусто)
+  const cacheKey = makeRecipesKey(base);
+
+  // 1) попробуем взять из кэша
+  try {
+    const cached = await cacheGet<any>(cacheKey);
+    if (cached) {
+      return new Response(JSON.stringify(cached), {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+  } catch {
+    // молча продолжаем без кэша
+  }
+
   const client = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
   });
@@ -193,7 +212,6 @@ export async function POST(req: Request) {
   // модель можно переопределить через переменную окружения
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
   let leads: string[] = []; // сюда соберём вводные абзацы
-
 
   let dtoRecipes: RecipeDto[] = [];
 
@@ -211,9 +229,8 @@ export async function POST(req: Request) {
     const data = safeJsonParse<ModelResponse>(text);
 
     leads = Array.isArray(data?.recipes)
-  ? (data!.recipes as any[]).map(r => r.lead).filter(Boolean)
-  : [];
-
+      ? (data!.recipes as any[]).map(r => r.lead).filter(Boolean)
+      : [];
 
     const modelRecipes = Array.isArray(data?.recipes) ? (data!.recipes as ModelRecipe[]) : [];
     if (modelRecipes.length >= 1) {
@@ -250,8 +267,8 @@ export async function POST(req: Request) {
     ];
   }
 
-return new Response(
-  JSON.stringify({
+  // ——— СБОР ОТВЕТА (один объект), затем кладём его в кэш и возвращаем
+  const result = {
     ok: true,
     products,
     recipes: dtoRecipes,
@@ -259,10 +276,21 @@ return new Response(
       router: "app",
       ts: startedAt,
       model,
-      leads // <-- новые вводные тексты по каждому рецепту (если модель их дала)
+      leads // вводные тексты по каждому рецепту (если модель их дала)
     }
-  }),
-  { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } }
-);
+  };
 
+  try {
+    // 2) положим в кэш на 24 часа
+    await cacheSet(cacheKey, result, 60 * 60 * 24);
+  } catch {
+    // если кэш недоступен — просто игнорируем
+  }
+
+  return new Response(JSON.stringify(result), {
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store"
+    }
+  });
 }
