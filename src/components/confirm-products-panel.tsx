@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RecipeDto } from "@/types/recipe";
 
 type ConfirmProductsPanelProps = {
-  /** стартовый список из распознавания */
   initialItems?: string[];
   onClear?: () => void;
   onChange?: (items: string[]) => void;
+  hideAction?: boolean;
 };
 
 type RecipeWithLead = RecipeDto & { lead?: string };
@@ -20,6 +20,7 @@ export default function ConfirmProductsPanel({
   initialItems = [],
   onClear,
   onChange,
+  hideAction = false,
 }: ConfirmProductsPanelProps) {
   const router = useRouter();
 
@@ -27,7 +28,17 @@ export default function ConfirmProductsPanel({
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // 1) Мемоизируем подготовку initialItems (нормализация + дедуп с сохранением порядка)
+  // что уже эмитили наверх — чтобы не слать одинаковое
+  const lastEmittedRef = useRef<string>("");
+
+  const emitChange = (next: string[]) => {
+    const key = next.join("|");
+    if (key === lastEmittedRef.current) return;
+    lastEmittedRef.current = key;
+    onChange?.(next);
+  };
+
+  // 1) Мемо подготовки стартовых items
   const normalizedInitial = useMemo(() => {
     const seen = new Set<string>();
     return (initialItems ?? [])
@@ -35,33 +46,34 @@ export default function ConfirmProductsPanel({
       .filter((x) => x.length > 0 && !seen.has(x) && (seen.add(x), true));
   }, [initialItems]);
 
-  // 2) Эффект простой: реагирует только на результат мемоизации
+  // 2) Гидратация из initial — БЕЗ onChange (важно, иначе цикл)
   useEffect(() => {
     setItems(normalizedInitial);
-    // если нужно уведомлять родителя о смене (раньше не было) — раскомментируй:
-    // onChange?.(normalizedInitial);
-  }, [normalizedInitial]); // линтер доволен
+    lastEmittedRef.current = normalizedInitial.join("|"); // считаем, что родитель уже знает старт
+  }, [normalizedInitial]);
 
   const handleAdd = () => {
     const trimmed = norm(input);
-    if (trimmed && !items.includes(trimmed)) {
-      const next = [...items, trimmed];
-      setItems(next);
-      onChange?.(next);
+    if (!trimmed || items.includes(trimmed)) {
+      setInput("");
+      return;
     }
+    const next = [...items, trimmed];
+    setItems(next);
+    emitChange(next);
     setInput("");
   };
 
   const handleRemove = (name: string) => {
     const next = items.filter((i) => i !== name);
     setItems(next);
-    onChange?.(next);
+    emitChange(next);
   };
 
   const handleClearAll = () => {
     setItems([]);
-    onChange?.([]);
-    onClear?.(); // спрятать панель и вернуть кнопку
+    emitChange([]);
+    onClear?.();
   };
 
   async function handleGenerate() {
@@ -86,7 +98,8 @@ export default function ConfirmProductsPanel({
             "recipes_payload",
             JSON.stringify({ products: items, data: enriched })
           );
-          router.push(`/recipes?items=${encodeURIComponent(items.join(","))}`);
+          // replace вместо push, чтобы не плодить историю
+          router.replace(`/recipes?items=${encodeURIComponent(items.join(","))}`);
           return;
         }
       } catch {}
@@ -122,7 +135,7 @@ export default function ConfirmProductsPanel({
         JSON.stringify({ products: items, data: enriched })
       );
 
-      router.push(`/recipes?items=${encodeURIComponent(items.join(","))}`);
+      router.replace(`/recipes?items=${encodeURIComponent(items.join(","))}`);
     } catch (e) {
       console.error(e);
       alert("Не удалось получить рецепты. Попробуйте ещё раз.");
@@ -197,15 +210,18 @@ export default function ConfirmProductsPanel({
         >
           Очистить
         </button>
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={items.length === 0 || submitting}
-          className="flex-1 rounded-xl bg-green-600 text-white py-3 font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-busy={submitting}
-        >
-          {submitting ? "Генерируем рецепты…" : "Показать рецепты"}
-        </button>
+
+        {!hideAction && (
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={items.length === 0 || submitting}
+            className="flex-1 rounded-xl bg-green-600 text-white py-3 font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-busy={submitting}
+          >
+            {submitting ? "Генерируем рецепты…" : "Показать рецепты"}
+          </button>
+        )}
       </div>
     </section>
   );
