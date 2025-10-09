@@ -8,16 +8,13 @@ export default function HomePage() {
   const [recognized, setRecognized] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [manualMode, setManualMode] = useState(false);
-  const [flashConfirm, setFlashConfirm] = useState(false); // подсветка панели
+  const [flashConfirm, setFlashConfirm] = useState(false);
 
-  // якорь для скролла к панели
   const confirmRef = useRef<HTMLDivElement | null>(null);
 
   const revealPanelAndScroll = () => {
-    // даём React дорисовать панель и мягко скроллим к ней
     setTimeout(() => {
       confirmRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      // короткая подсветка панели, чтобы глаз зацепился
       setFlashConfirm(true);
       setTimeout(() => setFlashConfirm(false), 1200);
     }, 100);
@@ -25,24 +22,20 @@ export default function HomePage() {
 
   const handleRecognized = (products: string[]) => {
     setRecognized(products);
-    setIsScanning(false);   // важно: гасим подпись «Распознаём…»
-    setManualMode(false);   // если был ручной режим — выключаем
+    setIsScanning(false);
+    setManualMode(false);
     revealPanelAndScroll();
   };
 
   const handleManualClick = () => {
-    // включаем ручной режим и показываем (в т.ч. пустую) панель
     setManualMode(true);
-    if (recognized.length === 0) setRecognized([]); // панель рендерится даже если пусто
+    if (recognized.length === 0) setRecognized([]);
     revealPanelAndScroll();
   };
 
-  // панель показываем либо при ручном режиме, либо когда уже есть распознанные продукты
   const shouldShowPanel = manualMode || recognized.length > 0;
-  // кнопку ручного ввода показываем только когда панель ещё не отображается
   const shouldShowManualButton = !shouldShowPanel;
 
-  // панель присылает "очистить" → скрываем панель и возвращаем кнопку
   const handleClearPanel = () => {
     setRecognized([]);
     setManualMode(false);
@@ -52,16 +45,10 @@ export default function HomePage() {
     <main className="p-6 max-w-md mx-auto space-y-6">
       <h1 className="text-xl font-semibold">Что приготовить?</h1>
 
-      {/* drop-зона */}
-      <UploadZone
-        onRecognized={handleRecognized}
-        onScanningChange={setIsScanning}
-      />
+      <UploadZone onRecognized={handleRecognized} onScanningChange={setIsScanning} />
 
-      {/* подпись под зоной при распознавании */}
       {isScanning && <p className="text-sm text-gray-500">Распознаём продукты…</p>}
 
-      {/* кнопка "Написать продукты вручную" — скрываем после распознавания/при показанной панели */}
       {shouldShowManualButton && (
         <button
           type="button"
@@ -72,7 +59,6 @@ export default function HomePage() {
         </button>
       )}
 
-      {/* панель подтверждения + якорь для скролла */}
       {shouldShowPanel && (
         <div
           ref={confirmRef}
@@ -82,10 +68,7 @@ export default function HomePage() {
               : ""
           }
         >
-          <ConfirmProductsPanel
-            initialItems={recognized}
-            onClear={handleClearPanel}
-          />
+          <ConfirmProductsPanel initialItems={recognized} onClear={handleClearPanel} />
         </div>
       )}
     </main>

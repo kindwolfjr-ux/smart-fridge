@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RecipeDto } from "@/types/recipe";
 
-// один интерфейс пропсов: initialItems + onClear/onChange
 type ConfirmProductsPanelProps = {
   /** стартовый список из распознавания */
   initialItems?: string[];
@@ -13,6 +12,9 @@ type ConfirmProductsPanelProps = {
 };
 
 type RecipeWithLead = RecipeDto & { lead?: string };
+
+const norm = (s: string) =>
+  s.toLowerCase().trim().replace(/\s+/g, " ").replace(/ё/g, "е");
 
 export default function ConfirmProductsPanel({
   initialItems = [],
@@ -25,16 +27,23 @@ export default function ConfirmProductsPanel({
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // заполняем из распознавания и обновляем при его смене
+  // 1) Мемоизируем подготовку initialItems (нормализация + дедуп с сохранением порядка)
+  const normalizedInitial = useMemo(() => {
+    const seen = new Set<string>();
+    return (initialItems ?? [])
+      .map((x) => norm(String(x)))
+      .filter((x) => x.length > 0 && !seen.has(x) && (seen.add(x), true));
+  }, [initialItems]);
+
+  // 2) Эффект простой: реагирует только на результат мемоизации
   useEffect(() => {
-    const prepared = (initialItems ?? [])
-      .map((x) => x.trim().toLowerCase())
-      .filter(Boolean);
-    setItems(prepared);
-  }, [JSON.stringify(initialItems)]);
+    setItems(normalizedInitial);
+    // если нужно уведомлять родителя о смене (раньше не было) — раскомментируй:
+    // onChange?.(normalizedInitial);
+  }, [normalizedInitial]); // линтер доволен
 
   const handleAdd = () => {
-    const trimmed = input.trim().toLowerCase();
+    const trimmed = norm(input);
     if (trimmed && !items.includes(trimmed)) {
       const next = [...items, trimmed];
       setItems(next);
@@ -52,17 +61,17 @@ export default function ConfirmProductsPanel({
   const handleClearAll = () => {
     setItems([]);
     onChange?.([]);
-    onClear?.(); // сообщаем странице, чтобы спрятать панель и вернуть кнопку
+    onClear?.(); // спрятать панель и вернуть кнопку
   };
 
   async function handleGenerate() {
-    if (items.length === 0 || submitting) return; // защита от пустоты и двойного клика
+    if (items.length === 0 || submitting) return;
     setSubmitting(true);
 
     const key =
       "recipes:" +
       items
-        .map((x) => x.trim().toLowerCase())
+        .map((x) => norm(x))
         .filter(Boolean)
         .sort()
         .join("|");
