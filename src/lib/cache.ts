@@ -1,40 +1,31 @@
-import { Redis } from "@upstash/redis";
+// src/lib/cache.ts
+type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 
-let redis: ReturnType<typeof Redis.fromEnv> | null = null;
-try {
-  // будет работать, если заданы переменные окружения:
-  // UPSTASH_REDIS_REST_URL и UPSTASH_REDIS_REST_TOKEN
-  redis = Redis.fromEnv();
-} catch {
-  // локальный режим без Redis — используем in-memory Map (на Vercel в prod это НЕ сохранится)
-}
+const mem = new Map<string, { value: Json; expiresAt: number }>();
 
-const memory = new Map<string, any>();
-
-export async function cacheGet<T = any>(key: string): Promise<T | null> {
-  if (redis) {
-    const val = await redis.get<T>(key);
-    return (val as T) ?? null;
+/** Считать из кэша (in-memory как фолбэк) */
+export async function cacheGet<T = unknown>(key: string): Promise<T | null> {
+  // in-memory
+  const hit = mem.get(key);
+  if (hit && hit.expiresAt > Date.now()) {
+    return hit.value as T;
   }
-  return (memory.get(key) as T) ?? null;
+  return null;
 }
 
-export async function cacheSet<T = any>(
+/** Положить в кэш (in-memory как фолбэк) */
+export async function cacheSet(
   key: string,
-  value: T,
-  ttlSeconds = 60 * 60 * 24 // 24h
-): Promise<void> {
-  if (redis) {
-    await redis.set(key, value, { ex: ttlSeconds });
-    return;
-  }
-  memory.set(key, value);
+  value: unknown,
+  ttlSeconds: number
+): Promise<boolean> {
+  // допускаем только JSON-значения
+  const safe: Json = (value as Json);
+  mem.set(key, { value: safe, expiresAt: Date.now() + ttlSeconds * 1000 });
+  return true;
 }
 
-export function makeRecipesKey(products: string[]) {
-  const norm = products
-    .map((x) => String(x).trim().toLowerCase())
-    .filter(Boolean)
-    .sort();
-  return `recipes:${norm.join("|")}`;
+/** Ключ для рецептов */
+export function makeRecipesKey(products: string[]): string {
+  return "recipes:" + products.map((p) => p.trim().toLowerCase()).filter(Boolean).sort().join("|");
 }

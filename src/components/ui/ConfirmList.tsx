@@ -34,45 +34,43 @@ type Props = { initial?: string[] };
 export default function ConfirmList({ initial = [] }: Props) {
   const router = useRouter();
   const search = useSearchParams();
+
   const [items, setItems] = useState<Item[]>([]);
   const [input, setInput] = useState('');
   const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
 
-  // 1) Гидратация списка:
+  // ?items=... из URL — мемоизируем, чтобы deps эффекта были простыми
+  const itemsFromQuery = useMemo<string[]>(() => {
+    const q = search.get('items');
+    if (!q) return [];
+    return uniqNames(q.split(',').map(s => s.trim()));
+  }, [search]);
+
+  // 1) Гидратация списка (по приоритетам: initial → query → sessionStorage → пусто)
   useEffect(() => {
-    async function hydrate() {
-      setLoading(true);
-      try {
-        // A. Если передали initial пропом
-        if (initial.length) {
-          const list = uniqNames(initial);
-          setItems(list.map(n => ({ id: makeId(n), name: n, checked: true })));
-          return;
-        }
-        // B. Если пришли через query ?items=...
-        const q = search.get('items');
-        if (q) {
-          const list = uniqNames(q.split(',').map(s => s.trim()));
-          setItems(list.map(n => ({ id: makeId(n), name: n, checked: true })));
-          return;
-        }
-        // C. Если предыдущая страница положила в sessionStorage
-        const stored = typeof window !== 'undefined' ? sessionStorage.getItem('lastScanItems') : null;
-        if (stored) {
-          const list = uniqNames(JSON.parse(stored) as string[]);
-          setItems(list.map(n => ({ id: makeId(n), name: n, checked: true })));
-          return;
-        }
-        // D. Пусто — пусть пользователь добавляет вручную
-        setItems([]);
-      } finally {
-        setLoading(false);
+    setLoading(true);
+    try {
+      if (initial.length) {
+        const list = uniqNames(initial);
+        setItems(list.map(n => ({ id: makeId(n), name: n, checked: true })));
+        return;
       }
+      if (itemsFromQuery.length) {
+        setItems(itemsFromQuery.map(n => ({ id: makeId(n), name: n, checked: true })));
+        return;
+      }
+      const stored = typeof window !== 'undefined' ? sessionStorage.getItem('lastScanItems') : null;
+      if (stored) {
+        const list = uniqNames(JSON.parse(stored) as string[]);
+        setItems(list.map(n => ({ id: makeId(n), name: n, checked: true })));
+        return;
+      }
+      setItems([]);
+    } finally {
+      setLoading(false);
     }
-    hydrate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initial, itemsFromQuery]);
 
   const anyChecked = items.some(i => i.checked);
   const selectedNames = useMemo(() => items.filter(i => i.checked).map(i => i.name), [items]);
@@ -84,7 +82,6 @@ export default function ConfirmList({ initial = [] }: Props) {
     if (!v) return;
     setItems(prev => {
       const names = uniqNames([...prev.map(p => p.name), v]);
-      // пересобираем, чтобы не терять порядок и флаги
       const m = new Map(names.map(n => [normalizeName(n), n]));
       const merged: Item[] = [];
       for (const it of prev) {
@@ -110,7 +107,7 @@ export default function ConfirmList({ initial = [] }: Props) {
     setItems(prev => prev.map(i => ({ ...i, checked: next })));
   }
 
-  async function sendMetrics(stage: string, payload: any) {
+  async function sendMetrics(stage: string, payload: Record<string, unknown>) {
     try {
       await fetch('/api/metrics', {
         method: 'POST',
@@ -122,36 +119,36 @@ export default function ConfirmList({ initial = [] }: Props) {
     }
   }
 
-  // Твоя прежняя логика: сразу дергаем /api/recipes (добавил cacheKey)
+  // Получить рецепты и перейти на /recipes (с сохранением payload в sessionStorage)
   async function onConfirm() {
-  if (!anyChecked) return;
-  const products = selectedNames;
+    if (!anyChecked) return;
+    const products = selectedNames;
 
-  // (опционально) метрики
-  fetch('/api/metrics', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      stage: 'confirm_list',
+    // метрики (не блокируют UX)
+    void sendMetrics('confirm_list', {
       count_total: items.length,
       count_selected: products.length,
       cache_key: cacheKey,
-    }),
-  }).catch(() => {});
+    });
 
-  // ВАЖНО: получаем рецепты здесь
-  const res = await fetch('/api/recipes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ products, cacheKey }),
-  });
-  if (!res.ok) { alert('Ошибка при генерации рецептов'); return; }
+    const res = await fetch('/api/recipes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products, cacheKey }),
+    });
+    if (!res.ok) {
+      alert('Ошибка при генерации рецептов');
+      return;
+    }
 
-  const payload = await res.json();
-  sessionStorage.setItem('recipes_payload', JSON.stringify(payload));
-  router.push('/recipes');
-}
+    const payload = await res.json();
+    sessionStorage.setItem('recipes_payload', JSON.stringify(payload));
 
+    // помечаем низкоприоритетный переход, чтобы задействовать isPending
+    startTransition(() => {
+      router.push('/recipes');
+    });
+  }
 
   // ── UI ───────────────────────────────────────────────────────────────
   return (

@@ -1,3 +1,4 @@
+// src/app/api/openai-ping/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 export const runtime = "nodejs";
@@ -13,8 +14,9 @@ export async function GET() {
       temperature: 0,
     });
     return NextResponse.json({ ok: true, reply: r.choices[0].message.content });
-  } catch (e: any) {
-    console.error("PING_ERROR", e?.status, e?.message, e?.response?.data);
-    return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });
+  } catch (e: unknown) {
+    const err = e as { status?: number; message?: string; response?: { data?: unknown } };
+    console.error("PING_ERROR", err?.status, err?.message, err?.response?.data);
+    return NextResponse.json({ ok: false, error: err?.message ?? "unknown error" }, { status: 500 });
   }
 }

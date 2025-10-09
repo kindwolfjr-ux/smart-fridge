@@ -2,6 +2,7 @@
 import type { RecipeDto } from "@/types/recipe";
 import OpenAI from "openai";
 import { cacheGet, cacheSet, makeRecipesKey } from "@/lib/cache";
+import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -10,16 +11,18 @@ export const runtime = "nodejs";
 /** ——— Утилиты ——— */
 
 function uuid() {
-  // безопасный генератор id
-  // @ts-ignore
-  return globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+  try {
+    return randomUUID();
+  } catch {
+    return Math.random().toString(36).slice(2);
+  }
 }
 
 function normalizeProducts(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   const arr = input
-    .map(x => (typeof x === "string" ? x : String(x ?? "")))
-    .map(s => s.trim().toLowerCase())
+    .map((x) => (typeof x === "string" ? x : String(x ?? "")))
+    .map((s) => s.trim().toLowerCase())
     .filter((s): s is string => s.length > 0);
   return Array.from(new Set(arr)).sort();
 }
@@ -31,7 +34,6 @@ function minutesFromText(s: string): number | undefined {
 
 function splitAmountUnit(qty: string | undefined): { amount?: number; unit?: string } {
   if (!qty) return {};
-  // Примеры: "200 г", "1 шт", "2–3 ст.л.", "0.5 ч.л.", "150 мл"
   const m = qty.match(/^(\d+(?:[\.,]\d+)?)(?:\s*[-–]\s*\d+(?:[\.,]\d+)?)?\s*([^\d]+)?$/);
   if (!m) return {};
   const amount = Number(m[1].replace(",", "."));
@@ -43,7 +45,6 @@ function safeJsonParse<T>(text: string): T | null {
   try {
     return JSON.parse(text) as T;
   } catch {
-    // вырезаем последний JSON из текста
     const m = text.match(/\{[\s\S]*\}$/);
     if (!m) return null;
     try {
@@ -93,7 +94,6 @@ const SYSTEM_PROMPT = `
 Без лишнего текста вне JSON.
 `.trim();
 
-
 function userPrompt(products: string[]) {
   return [
     "Вот продукты пользователя (через запятую):",
@@ -107,10 +107,10 @@ function userPrompt(products: string[]) {
   ].join("\n");
 }
 
-
 /** ——— Тип для ответа модели ——— */
 type ModelRecipe = {
   title: string;
+  lead?: string;
   time?: { prep?: number; cook?: number; total?: number };
   servings?: number;
   ingredients?: { item: string; quantity?: string }[];
@@ -123,35 +123,33 @@ type ModelResponse = { recipes?: ModelRecipe[] };
 /** ——— Маппер в наш RecipeDto ——— */
 function mapToDto(model: ModelRecipe[]): RecipeDto[] {
   return model.slice(0, 3).map((r, i) => {
-    const ingredients = (r.ingredients ?? []).map(it => {
+    const ingredients = (r.ingredients ?? []).map((it) => {
       const { amount, unit } = splitAmountUnit(it.quantity);
       return {
         name: it.item,
         amount,
-        unit
+        unit,
       };
     });
 
     const steps = (r.steps ?? []).map((s, idx) => {
-  // Разделяем «Заголовок — пояснение» или «Заголовок: пояснение»
-  const parts = s.split(/—|:/).map(x => x.trim()).filter(Boolean);
-  const action = parts[0] || "Шаг";
-  let detail = parts.slice(1).join(" — ").trim();
+      // Разделяем «Заголовок — пояснение» или «Заголовок: пояснение»
+      const parts = s.split(/—|:/).map((x) => x.trim()).filter(Boolean);
+      const action = parts[0] || "Шаг";
+      let detail = parts.slice(1).join(" — ").trim();
 
-  // если модель всё же продублировала — убираем повторы
-  if (!detail || detail.toLowerCase() === action.toLowerCase()) {
-    detail = "";
-  }
+      if (!detail || detail.toLowerCase() === action.toLowerCase()) {
+        detail = "";
+      }
 
-  const duration_min = minutesFromText(s);
-  return {
-    order: idx + 1,
-    action,
-    ...(detail ? { detail } : {}),       // не отправляем пустое описание
-    ...(duration_min ? { duration_min } : {})
-  };
-});
-
+      const duration_min = minutesFromText(s);
+      return {
+        order: idx + 1,
+        action,
+        ...(detail ? { detail } : {}),
+        ...(duration_min ? { duration_min } : {}),
+      };
+    });
 
     const totalMin =
       (r.time?.total ?? ((r.time?.prep ?? 0) + (r.time?.cook ?? 0))) ||
@@ -165,7 +163,7 @@ function mapToDto(model: ModelRecipe[]): RecipeDto[] {
       portion: servings,
       time_min: totalMin,
       ingredients,
-      steps
+      steps,
     };
   });
 }
@@ -182,9 +180,16 @@ export async function GET() {
 export async function POST(req: Request) {
   const startedAt = new Date().toISOString();
   let body: unknown = {};
-  try { body = await req.json(); } catch {}
+  try {
+    body = await req.json();
+  } catch {}
 
-  const products = normalizeProducts((body as any)?.products);
+  const productsInput =
+    body && typeof body === "object" && "products" in body
+      ? (body as { products: unknown }).products
+      : undefined;
+
+  const products = normalizeProducts(productsInput);
   const base = products.length ? products : ["яйца", "лук", "шампиньоны"];
 
   // ——— КЭШ: ключ строим из нормализованных продуктов (или base, если пусто)
@@ -192,8 +197,8 @@ export async function POST(req: Request) {
 
   // 1) попробуем взять из кэша
   try {
-    const cached = await cacheGet<any>(cacheKey);
-    if (cached) {
+    const cached = await cacheGet<unknown>(cacheKey);
+    if (cached && typeof cached === "object") {
       return new Response(JSON.stringify(cached), {
         headers: {
           "Content-Type": "application/json; charset=utf-8",
@@ -206,13 +211,11 @@ export async function POST(req: Request) {
   }
 
   const client = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+    apiKey: process.env.OPENAI_API_KEY,
   });
 
-  // модель можно переопределить через переменную окружения
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
-  let leads: string[] = []; // сюда соберём вводные абзацы
-
+  let leads: string[] = [];
   let dtoRecipes: RecipeDto[] = [];
 
   try {
@@ -221,22 +224,18 @@ export async function POST(req: Request) {
       temperature: 0.6,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt(base) }
-      ]
+        { role: "user", content: userPrompt(base) },
+      ],
     });
 
     const text = resp.choices?.[0]?.message?.content ?? "{}";
     const data = safeJsonParse<ModelResponse>(text);
 
-    leads = Array.isArray(data?.recipes)
-      ? (data!.recipes as any[]).map(r => r.lead).filter(Boolean)
-      : [];
-
-    const modelRecipes = Array.isArray(data?.recipes) ? (data!.recipes as ModelRecipe[]) : [];
-    if (modelRecipes.length >= 1) {
-      dtoRecipes = mapToDto(modelRecipes);
+    if (Array.isArray(data?.recipes)) {
+      leads = data.recipes.map((r) => r.lead).filter((s): s is string => Boolean(s));
+      dtoRecipes = mapToDto(data.recipes);
     }
-  } catch (e) {
+  } catch {
     // упадём на фолбэк ниже
   }
 
@@ -250,24 +249,22 @@ export async function POST(req: Request) {
       ingredients: base.map((p, idx) => ({
         name: p,
         amount: idx === 0 ? 2 : undefined,
-        unit: idx === 0 ? "шт" : undefined
+        unit: idx === 0 ? "шт" : undefined,
       })),
       steps: [
         { order: 1, action: "Подготовить", detail: "нарезать ингредиенты", duration_min: 3 },
         { order: 2, action: "Обжарить", detail: "на сковороде на среднем огне", duration_min: 7 },
-        { order: 3, action: "Довести", detail: "посолить, подать", duration_min: 5 }
-      ]
+        { order: 3, action: "Довести", detail: "посолить, подать", duration_min: 5 },
+      ],
     };
 
-    // делаем 3 варианта, чтобы фронт всегда получал 3
     dtoRecipes = [
       fallback,
-      { ...fallback, id: uuid(), title: fallback.title + " — вариант 2" },
-      { ...fallback, id: uuid(), title: fallback.title + " — вариант 3" }
+      { ...fallback, id: uuid(), title: `${fallback.title} — вариант 2` },
+      { ...fallback, id: uuid(), title: `${fallback.title} — вариант 3` },
     ];
   }
 
-  // ——— СБОР ОТВЕТА (один объект), затем кладём его в кэш и возвращаем
   const result = {
     ok: true,
     products,
@@ -276,21 +273,18 @@ export async function POST(req: Request) {
       router: "app",
       ts: startedAt,
       model,
-      leads // вводные тексты по каждому рецепту (если модель их дала)
-    }
+      leads,
+    },
   };
 
   try {
-    // 2) положим в кэш на 24 часа
     await cacheSet(cacheKey, result, 60 * 60 * 24);
-  } catch {
-    // если кэш недоступен — просто игнорируем
-  }
+  } catch {}
 
   return new Response(JSON.stringify(result), {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store"
-    }
+      "Cache-Control": "no-store",
+    },
   });
 }
