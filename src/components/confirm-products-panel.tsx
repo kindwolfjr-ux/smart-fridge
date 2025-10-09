@@ -4,14 +4,21 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RecipeDto } from "@/types/recipe";
 
-type Props = {
+// один интерфейс пропсов: initialItems + onClear/onChange
+type ConfirmProductsPanelProps = {
   /** стартовый список из распознавания */
   initialItems?: string[];
+  onClear?: () => void;
+  onChange?: (items: string[]) => void;
 };
 
 type RecipeWithLead = RecipeDto & { lead?: string };
 
-export default function ConfirmProductsPanel({ initialItems = [] }: Props) {
+export default function ConfirmProductsPanel({
+  initialItems = [],
+  onClear,
+  onChange,
+}: ConfirmProductsPanelProps) {
   const router = useRouter();
 
   const [items, setItems] = useState<string[]>([]);
@@ -29,13 +36,23 @@ export default function ConfirmProductsPanel({ initialItems = [] }: Props) {
   const handleAdd = () => {
     const trimmed = input.trim().toLowerCase();
     if (trimmed && !items.includes(trimmed)) {
-      setItems((prev) => [...prev, trimmed]);
+      const next = [...items, trimmed];
+      setItems(next);
+      onChange?.(next);
     }
     setInput("");
   };
 
   const handleRemove = (name: string) => {
-    setItems((prev) => prev.filter((i) => i !== name));
+    const next = items.filter((i) => i !== name);
+    setItems(next);
+    onChange?.(next);
+  };
+
+  const handleClearAll = () => {
+    setItems([]);
+    onChange?.([]);
+    onClear?.(); // сообщаем странице, чтобы спрятать панель и вернуть кнопку
   };
 
   async function handleGenerate() {
@@ -51,7 +68,7 @@ export default function ConfirmProductsPanel({ initialItems = [] }: Props) {
         .join("|");
 
     try {
-      // 0) client-cache: попробуем отдать мгновенно
+      // 0) client-cache
       try {
         const cachedRaw = localStorage.getItem(key);
         if (cachedRaw) {
@@ -63,11 +80,9 @@ export default function ConfirmProductsPanel({ initialItems = [] }: Props) {
           router.push(`/recipes?items=${encodeURIComponent(items.join(","))}`);
           return;
         }
-      } catch {
-        // если localStorage недоступен — тихо пропускаем
-      }
+      } catch {}
 
-      // 1) обычный запрос
+      // 1) запрос
       sessionStorage.removeItem("recipes_payload");
 
       const res = await fetch("/api/recipes", {
@@ -76,9 +91,7 @@ export default function ConfirmProductsPanel({ initialItems = [] }: Props) {
         body: JSON.stringify({ products: items }),
       });
 
-      if (!res.ok) {
-        throw new Error(`Ошибка сервера (${res.status})`);
-      }
+      if (!res.ok) throw new Error(`Ошибка сервера (${res.status})`);
 
       const json = await res.json();
 
@@ -105,7 +118,7 @@ export default function ConfirmProductsPanel({ initialItems = [] }: Props) {
       console.error(e);
       alert("Не удалось получить рецепты. Попробуйте ещё раз.");
     } finally {
-      setSubmitting(false); // всегда отпускаем кнопку
+      setSubmitting(false);
     }
   }
 
@@ -167,15 +180,24 @@ export default function ConfirmProductsPanel({ initialItems = [] }: Props) {
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={handleGenerate}
-        disabled={items.length === 0 || submitting}
-        className="w-full mt-4 rounded-xl bg-green-600 text-white py-3 font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
-        aria-busy={submitting}
-      >
-        {submitting ? "Генерируем рецепты…" : "Показать рецепты"}
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={handleClearAll}
+          className="rounded-xl border px-4 py-2 text-sm hover:bg-gray-50"
+        >
+          Очистить
+        </button>
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={items.length === 0 || submitting}
+          className="flex-1 rounded-xl bg-green-600 text-white py-3 font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-busy={submitting}
+        >
+          {submitting ? "Генерируем рецепты…" : "Показать рецепты"}
+        </button>
+      </div>
     </section>
   );
 }
