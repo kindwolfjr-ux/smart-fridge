@@ -4,17 +4,20 @@ import { useState } from "react";
 
 type Props = {
   /** сообщим родителю, что распознали продукты + отдадим превью */
-  onRecognized: (products: string[], previewDataUrl: string) => void;
+  onRecognized: (products: string[], previewDataUrl?: string) => void; // <-- 2-й аргумент необязательный
   /** показать/скрыть индикатор "Распознаем продукты..." на родителе */
   onScanningChange?: (loading: boolean) => void;
   /** по желанию: уведомить о выбранном файле */
   onFileSelected?: (file: File) => void | Promise<void>;
+  /** компактный режим (после распознавания) */
+  compact?: boolean; // <-- добавили
 };
 
 export default function UploadZone({
   onRecognized,
   onScanningChange,
   onFileSelected,
+  compact = false, // <-- дефолт
 }: Props) {
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,23 +52,19 @@ export default function UploadZone({
         const data = await res.json();
 
         // нормализуем продукты
-        const rawProducts: string[] = Array.isArray(data?.products)
-          ? data.products
-          : [];
+        const rawProducts: string[] = Array.isArray(data?.products) ? data.products : [];
         const products = Array.from(
           new Set(
             rawProducts
               .map((x) => String(x).trim().toLowerCase())
-              .filter(Boolean),
-          ),
+              .filter(Boolean)
+          )
         );
 
         if (products.length) {
-          onRecognized(products, dataUrl);
+          onRecognized(products, dataUrl); // второй аргумент опционален
         } else {
-          alert(
-            "Не удалось распознать продукты. Добавь вручную или выбери другое фото.",
-          );
+          alert("Не удалось распознать продукты. Добавь вручную или выбери другое фото.");
         }
       } catch (err) {
         console.error(err);
@@ -104,11 +103,18 @@ export default function UploadZone({
   }
 
   return (
-    <div className="rounded-2xl border border-dashed p-0">
+    <div
+      className={[
+        "rounded-2xl border border-dashed",
+        "transition-all duration-500 ease-out",
+        compact ? "p-3" : "p-0", // меньше паддинги в компактном
+      ].join(" ")}
+    >
       <label
-        className={`block cursor-pointer ${
-          isOver ? "outline outline-2 outline-black/40" : ""
-        }`}
+        className={[
+          "block cursor-pointer transition-all duration-300",
+          isOver ? "outline outline-2 outline-black/40" : "",
+        ].join(" ")}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -123,19 +129,28 @@ export default function UploadZone({
         />
 
         {/* оболочка drop-зоны */}
-        <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
+        <div
+          className={[
+            "flex flex-col items-center justify-center text-center",
+            "transition-all duration-500 ease-out",
+            compact ? "px-3 py-4" : "px-5 py-10",
+          ].join(" ")}
+        >
           {!preview ? (
             <>
-              <div className="mb-2 text-base font-medium">
-                Выбрать фото продуктов
-              </div>
-              <div className="text-xs text-gray-500">
-                Нажми или перетащи сюда фото (камера/галерея)
-              </div>
+              {!compact && (
+                <>
+                  <div className="mb-2 text-base font-medium">Выбрать фото продуктов</div>
+                  <div className="text-xs text-gray-500">
+                    Нажми или перетащи сюда фото (камера/галерея)
+                  </div>
 
-              <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-white">
-                {loading ? "Сканируем…" : "Загрузить фото"}
-              </div>
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-white">
+                    {loading ? "Сканируем…" : "Загрузить фото"}
+                  </div>
+                </>
+              )}
+              {/* В компактном режиме до превью ничего не показываем */}
             </>
           ) : (
             <div className="w-full">
@@ -143,11 +158,15 @@ export default function UploadZone({
               <img
                 src={preview}
                 alt="preview"
-                className="mx-auto max-h-64 w-auto rounded-xl object-contain"
+                className={[
+                  "mx-auto w-auto rounded-xl object-contain transition-all duration-500 ease-out",
+                  compact ? "h-28" : "max-h-64",
+                ].join(" ")}
               />
-              <div className="mt-2 text-xs text-gray-500">
-                Распознаём продукты…
-              </div>
+              {/* подпись показываем только если реально идёт сканирование */}
+              {loading && (
+                <div className="mt-2 text-xs text-gray-500">Распознаём продукты…</div>
+              )}
             </div>
           )}
         </div>

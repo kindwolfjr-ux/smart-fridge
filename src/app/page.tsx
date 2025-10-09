@@ -45,54 +45,61 @@ export default function HomePage() {
     setManualMode(false);
   };
 
+  // ✅ после сканирования и при наличии продуктов — уменьшаем блок с фото
+  const compactPhoto = !isScanning && recognized.length > 0;
+
   // Ждём генерацию на первой странице и уходим на /recipes, когда всё готово
-const generateRecipes = async () => {
-  setErrorMsg(null);
+  const generateRecipes = async () => {
+    setErrorMsg(null);
 
-  const items = recognized.map((s) => s.trim()).filter(Boolean);
-  if (items.length === 0) {
-    throw new Error("Добавьте продукты, чтобы показать рецепт");
-  }
+    const items = recognized.map((s) => s.trim()).filter(Boolean);
+    if (items.length === 0) {
+      throw new Error("Добавьте продукты, чтобы показать рецепт");
+    }
 
-  // очищаем возможный старый payload
-  try { sessionStorage.removeItem("recipes_payload"); } catch {}
+    try { sessionStorage.removeItem("recipes_payload"); } catch {}
 
-  // обычный запрос БЕЗ AbortController/таймаутов — пусть спокойно «думает»
-  const res = await fetch("/api/recipes", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ products: items }),
-  });
+    const res = await fetch("/api/recipes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ products: items }),
+    });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    // если сервер реально упал — покажем краткую ошибку
-    throw new Error(text || `Не удалось сгенерировать рецепты (HTTP ${res.status})`);
-  }
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `Не удалось сгенерировать рецепты (HTTP ${res.status})`);
+    }
 
-  const json = await res.json();
+    const json = await res.json();
 
-  // кладём payload, чтобы /recipes открылся мгновенно без повторного запроса
-  try {
-    sessionStorage.setItem(
-      "recipes_payload",
-      JSON.stringify({ products: items, data: json })
-    );
-  } catch {}
+    try {
+      sessionStorage.setItem(
+        "recipes_payload",
+        JSON.stringify({ products: items, data: json })
+      );
+    } catch {}
 
-  // и только теперь — переходим
-  const q = encodeURIComponent(items.join(","));
-  router.replace(`/recipes?items=${q}`);
-};
-
-
-
+    const q = encodeURIComponent(items.join(","));
+    router.replace(`/recipes?items=${q}`);
+  };
 
   return (
     <main className="p-6 max-w-md mx-auto space-y-6">
       <h1 className="text-xl font-semibold">Что приготовить?</h1>
 
-      <UploadZone onRecognized={handleRecognized} onScanningChange={setIsScanning} />
+      {/* Обёртка с плавным изменением высоты */}
+      <div
+        className={[
+          "transition-all duration-500 ease-out overflow-hidden",
+          compactPhoto ? "max-h-40 sm:max-h-48" : "max-h-[22rem] sm:max-h-[28rem]",
+        ].join(" ")}
+      >
+        <UploadZone
+          compact={compactPhoto}
+          onRecognized={handleRecognized}
+          onScanningChange={setIsScanning}
+        />
+      </div>
 
       {isScanning && <p className="text-sm text-gray-500">Распознаём продукты…</p>}
 
@@ -117,9 +124,9 @@ const generateRecipes = async () => {
         >
           <ConfirmProductsPanel
             initialItems={recognized}
-            onChange={setRecognized}   // синхронизируем список из панели
+            onChange={setRecognized}
             onClear={handleClearPanel}
-            hideAction                 // скрываем старую кнопку внутри панели
+            hideAction
           />
 
           {/* Прогресс-кнопка «Показать рецепт» */}
