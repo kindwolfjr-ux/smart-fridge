@@ -24,7 +24,6 @@ export default function RecipesPage() {
   const [data, setData] = useState<RecipesResponseWithLead | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // список продуктов из URL (мемо, чтобы deps эффекта были простыми)
   const urlItems = useMemo<string[]>(() => {
     const s = searchParams.get("items") ?? "";
     return s
@@ -36,7 +35,6 @@ export default function RecipesPage() {
       : [];
   }, [searchParams]);
 
-  // payload из sessionStorage (если пришли со страницы подтверждения)
   const stored: StoredPayload = useMemo(() => {
     if (typeof window === "undefined") return null;
     const raw = sessionStorage.getItem("recipes_payload");
@@ -46,28 +44,32 @@ export default function RecipesPage() {
     } catch {
       return null;
     }
-  }, []);
+  }, []); // читаем один раз — этого достаточно
 
   useEffect(() => {
-    let shouldFetch = true;
+    let cancelled = false;
 
-    // 1) если есть кэш в sessionStorage и он совпадает с urlItems — используем его
-    if (stored?.data?.ok) {
-      const storedItems = Array.isArray(stored.products)
-        ? stored.products.map((x) => x.trim().toLowerCase()).filter(Boolean).sort()
-        : [];
+    async function run() {
+      let shouldFetch = true;
 
-      if (JSON.stringify(storedItems) === JSON.stringify(urlItems)) {
-        setData(stored.data);
-        setLoading(false);
-        shouldFetch = false;
+      // 1) пробуем sessionStorage-кэш
+      if (stored?.data?.ok) {
+        const storedItems = Array.isArray(stored.products)
+          ? stored.products.map((x) => x.trim().toLowerCase()).filter(Boolean).sort()
+          : [];
+        if (JSON.stringify(storedItems) === JSON.stringify(urlItems)) {
+          if (!cancelled) {
+            setData(stored.data);
+            setLoading(false);
+          }
+          shouldFetch = false;
+        }
       }
-    }
 
-    // 2) иначе — сходить на API
-    (async () => {
+      // 2) иначе — запрос
       if (!shouldFetch) return;
-      setLoading(true);
+
+      if (!cancelled) setLoading(true);
 
       const res = await fetch("/api/recipes", {
         method: "POST",
@@ -76,8 +78,10 @@ export default function RecipesPage() {
       });
 
       if (!res.ok) {
-        setData(null);
-        setLoading(false);
+        if (!cancelled) {
+          setData(null);
+          setLoading(false);
+        }
         return;
       }
 
@@ -107,17 +111,21 @@ export default function RecipesPage() {
         trace: json.trace,
       };
 
-      setData(enriched);
+      if (!cancelled) {
+        setData(enriched);
+        sessionStorage.setItem(
+          "recipes_payload",
+          JSON.stringify({ products: urlItems, data: enriched })
+        );
+        setLoading(false);
+      }
+    }
 
-      // сохраняем для кнопки «Назад»
-      sessionStorage.setItem(
-        "recipes_payload",
-        JSON.stringify({ products: urlItems, data: enriched })
-      );
-
-      setLoading(false);
-    })();
-  }, [stored, urlItems]);
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [urlItems, stored]); // ok: stored мемоизирован пустыми deps и не меняется
 
   if (loading) return <div className="p-6 text-gray-500">Загружаем рецепты...</div>;
 
@@ -132,7 +140,6 @@ export default function RecipesPage() {
   return (
     <main className="p-6 space-y-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-semibold mb-4">Ваши рецепты</h1>
-
       {data.recipes.map((r) => (
         <RecipeCard key={r.id} recipe={r} />
       ))}

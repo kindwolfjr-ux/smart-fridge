@@ -146,7 +146,7 @@ export default function ConfirmList({ initial = [] }: Props) {
 
     // помечаем низкоприоритетный переход, чтобы задействовать isPending
     startTransition(() => {
-      router.push('/recipes');
+      router.replace('/recipes');
     });
   }
 
