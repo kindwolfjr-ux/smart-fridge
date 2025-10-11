@@ -1,4 +1,16 @@
 import { BASIC_ALLOWED, canonicalize, canonicalizeList } from "./food-normalize";
+import type { ProductQty } from "@/types/product";
+
+export function toRecipePayload(items: ProductQty[]) {
+  // на бэке пока можно принять items как есть;
+  // если нужен старый формат — сформируй тут и отправь оба
+  return {
+    items: items.map(i => ({ name: i.name.trim(), qty: i.qty })),
+    // legacyNames для полной совместимости, если бэк ещё это ждёт
+    legacyNames: items.map(i => i.name.trim()).filter(Boolean),
+  };
+}
+
 
 export function buildAllowed(userItems: string[]): Set<string> {
   const canon = canonicalizeList(userItems);

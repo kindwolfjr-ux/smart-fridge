@@ -6,8 +6,20 @@ import UploadZone from "@/components/ui/upload-zone";
 import ConfirmProductsPanel from "@/components/confirm-products-panel";
 import ProgressButton from "@/components/ProgressButton";
 
+// Тип согласован с confirm-products-panel.tsx
+type ProductQty = {
+  name: string;
+  detailed?: boolean;
+  qty?: number;
+  unit?: "g" | "ml" | "pcs";
+};
+
 export default function HomePage() {
+  // имена (для совместимости с ?items=)
   const [recognized, setRecognized] = useState<string[]>([]);
+  // полный формат (для опциональных количеств)
+  const [recognizedQty, setRecognizedQty] = useState<ProductQty[]>([]);
+
   const [isScanning, setIsScanning] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [flashConfirm, setFlashConfirm] = useState(false);
@@ -25,7 +37,10 @@ export default function HomePage() {
   };
 
   const handleRecognized = (products: string[]) => {
-    setRecognized(products);
+    const names = products.map((s) => s.trim()).filter(Boolean);
+    setRecognized(names);
+    // стартово все без уточнения количества
+    setRecognizedQty(names.map((n) => ({ name: n, detailed: false })));
     setIsScanning(false);
     setManualMode(false);
     revealPanelAndScroll();
@@ -33,7 +48,10 @@ export default function HomePage() {
 
   const handleManualClick = () => {
     setManualMode(true);
-    if (recognized.length === 0) setRecognized([]);
+    if (recognized.length === 0) {
+      setRecognized([]);
+      setRecognizedQty([]);
+    }
     revealPanelAndScroll();
   };
 
@@ -42,13 +60,14 @@ export default function HomePage() {
 
   const handleClearPanel = () => {
     setRecognized([]);
+    setRecognizedQty([]);
     setManualMode(false);
   };
 
-  // ✅ после сканирования и при наличии продуктов — уменьшаем блок с фото
+  // после сканирования и при наличии продуктов — уменьшаем блок с фото
   const compactPhoto = !isScanning && recognized.length > 0;
 
-  // ⚡️ Мгновенный переход на /recipes — без ожидания серверной генерации
+  // Переход на /recipes — без ожидания сервера
   const generateRecipes = async () => {
     setErrorMsg(null);
 
@@ -57,8 +76,21 @@ export default function HomePage() {
       throw new Error("Добавьте продукты, чтобы показать рецепт");
     }
 
-    // Можно очистить прежний payload, чтобы не подхватился старый кэш
-    try { sessionStorage.removeItem("recipes_payload"); } catch {}
+    // в сессию положим только уточнённые позиции
+    try {
+      const detailed = recognizedQty
+        .filter((i) => i.detailed && typeof i.qty === "number" && i.unit)
+        .map((i) => ({
+          name: i.name.trim(),
+          qty: i.qty as number,
+          unit: i.unit as "g" | "ml" | "pcs",
+        }));
+      sessionStorage.setItem("products_qty", JSON.stringify(detailed));
+    } catch {}
+
+    try {
+      sessionStorage.removeItem("recipes_payload");
+    } catch {}
 
     const q = encodeURIComponent(items.join(","));
     router.replace(`/recipes?items=${q}`);
@@ -105,7 +137,10 @@ export default function HomePage() {
         >
           <ConfirmProductsPanel
             initialItems={recognized}
+            // имена для обратной совместимости родителя
             onChange={setRecognized}
+            // ВАЖНО: обёртка, чтобы тип функции совпал
+            onChangeQty={(list) => setRecognizedQty(list)}
             onClear={handleClearPanel}
             hideAction
           />

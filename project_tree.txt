@@ -1,0 +1,76 @@
+### REPO (depth 2)
+.
+├── components.json
+├── eslint.config.mjs
+├── next-env.d.ts
+├── next.config.js
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── public
+│   ├── assets
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── README.md
+├── src
+│   ├── app
+│   ├── components
+│   ├── lib
+│   └── types
+├── tree.txt
+└── tsconfig.json
+
+8 directories, 16 files
+
+### SRC (depth 3)
+src
+├── app
+│   ├── api
+│   │   ├── debug-env
+│   │   ├── metrics
+│   │   ├── openai-ping
+│   │   ├── ping
+│   │   ├── recipes
+│   │   ├── scan
+│   │   └── types
+│   ├── confirm
+│   │   └── page.tsx
+│   ├── favicon.ico
+│   ├── globals.css
+│   ├── layout.tsx
+│   ├── loading.tsx
+│   ├── page.tsx
+│   └── recipes
+│       └── page.tsx
+├── components
+│   ├── confirm-products-panel.tsx
+│   ├── manual-input.tsx
+│   ├── ProgressButton.tsx
+│   ├── recipe-card.tsx
+│   ├── streamed-recipes-demo.tsx
+│   └── ui
+│       ├── button.tsx
+│       ├── card.tsx
+│       ├── ConfirmList.tsx
+│       ├── input.tsx
+│       ├── label.tsx
+│       ├── progress.tsx
+│       └── upload-zone.tsx
+├── lib
+│   ├── cache.ts
+│   ├── food-normalize.ts
+│   ├── normalize.ts
+│   ├── openai.ts
+│   ├── recipes-helpers.ts
+│   ├── recipes-sanitize.ts
+│   ├── useStreamedRecipe.ts
+│   └── utils.ts
+└── types
+    ├── product.ts
+    └── recipe.ts
+
+16 directories, 29 files
