@@ -48,7 +48,7 @@ export default function HomePage() {
   // ✅ после сканирования и при наличии продуктов — уменьшаем блок с фото
   const compactPhoto = !isScanning && recognized.length > 0;
 
-  // Ждём генерацию на первой странице и уходим на /recipes, когда всё готово
+  // ⚡️ Мгновенный переход на /recipes — без ожидания серверной генерации
   const generateRecipes = async () => {
     setErrorMsg(null);
 
@@ -57,27 +57,8 @@ export default function HomePage() {
       throw new Error("Добавьте продукты, чтобы показать рецепт");
     }
 
+    // Можно очистить прежний payload, чтобы не подхватился старый кэш
     try { sessionStorage.removeItem("recipes_payload"); } catch {}
-
-    const res = await fetch("/api/recipes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ products: items }),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(text || `Не удалось сгенерировать рецепты (HTTP ${res.status})`);
-    }
-
-    const json = await res.json();
-
-    try {
-      sessionStorage.setItem(
-        "recipes_payload",
-        JSON.stringify({ products: items, data: json })
-      );
-    } catch {}
 
     const q = encodeURIComponent(items.join(","));
     router.replace(`/recipes?items=${q}`);
