@@ -1,7 +1,6 @@
-// src/lib/useStreamedRecipe.ts
 import { useCallback, useRef, useState } from "react";
 
-type Variant = "basic" | "creative" | "upgrade";
+type Variant = "basic" | "creative" | "upgrade" | "fast";
 type StartArgs = { products: string[]; variant?: Variant };
 
 export function useStreamedRecipe() {

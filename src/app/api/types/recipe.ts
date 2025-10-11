@@ -1,39 +1,52 @@
-export type Unit = "г" | "мл" | "ст. л." | "ч. л.";
+// src/types/recipe.ts
 
-export interface RecipeStep {
+export type Unit =
+  | "г"
+  | "мл"
+  | "шт"
+  | "щепотка"
+  | "ст.л."
+  | "ч.л."
+  | "по вкусу"
+  | string;
+
+export interface IngredientDto {
+  name: string;
+  amount?: number | string;
+  unit?: Unit;
+  note?: string;
+}
+
+export interface StepDto {
   order: number;
-  action: string;         // краткий заголовок шага
-  detail: string;         // развернутое описание: сколько, как, чем
-  duration_min?: number;  // по возможности
-  temperature_c?: number; // по возможности
-}
-
-export interface IngredientItem {
-  name: string;           // каноническое имя
-  amount: number;         // целое число
-  unit: Unit;
-  note?: string;          // например: "для варки"
-}
-
-export interface Nutrition {
-  kcal: number;
-  protein_g: number;
-  fat_g: number;
-  carb_g: number;
+  action: string;
+  detail?: string;
+  duration_min?: number;
 }
 
 export interface RecipeDto {
+  /** Уникальный идентификатор (используется для key в React) */
   id: string;
-  title: string;          // ≤ 6–8 слов
-  portion: string;        // например: "2 порции"
-  time_min: number;       // суммарное или реалистичное
-  equipment: string[];    // инвентарь
-  ingredients: IngredientItem[];
-  steps: RecipeStep[];    // 3–8 шагов
-  tips?: string[];
-  nutrition?: Nutrition;
+
+  /** Название рецепта */
+  title: string;
+
+  /** Количество порций (читаемая строка, например "3 порции") */
+  portion?: string;
+
+  /** Время приготовления (в минутах) */
+  time_min?: number;
+
+  /** Список ингредиентов */
+  ingredients: IngredientDto[];
+
+  /** Шаги приготовления */
+  steps: StepDto[];
 }
 
 export interface RecipesResponse {
+  ok?: boolean;
+  error?: string;
   recipes: RecipeDto[];
+  trace?: unknown;
 }
