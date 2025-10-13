@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RecipeDto } from "@/types/recipe";
+import { track, getSessionId } from "@/lib/analytics";
 
 type Unit = "g" | "ml" | "pcs";
 type ProductQty = {
@@ -47,7 +48,7 @@ export default function ConfirmProductsPanel({
 
   const [items, setItems] = useState<ProductQty[]>([]);
   const [nameInput, setNameInput] = useState("");
-  const [qtyInput, setQtyInput] = useState<number | "">(""); // можно оставить, если пригодится позже
+  const [qtyInput, setQtyInput] = useState<number | "">("");
   const [submitting, setSubmitting] = useState(false);
 
   const lastEmittedRef = useRef<string>("");
@@ -97,7 +98,6 @@ export default function ConfirmProductsPanel({
   useEffect(() => {
     const currentNamesKey = items.map((i) => norm(i.name)).sort().join("|");
 
-    // первый заход — гидратация
     if (!initialKeyRef.current) {
       setItems(normalizedInitial);
       lastEmittedRef.current = normalizedInitial
@@ -107,7 +107,6 @@ export default function ConfirmProductsPanel({
       return;
     }
 
-    // если пришёл ДРУГОЙ набор initialItems и локальный список пока пуст — тоже гидратация
     if (initialKey !== initialKeyRef.current && items.length === 0 && currentNamesKey === "") {
       setItems(normalizedInitial);
       lastEmittedRef.current = normalizedInitial
@@ -116,10 +115,9 @@ export default function ConfirmProductsPanel({
       initialKeyRef.current = initialKey;
       return;
     }
-
-    // иначе ничего не делаем — не перетираем локальные правки
+    // иначе ничего не делаем
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialKey, normalizedInitial]); // намеренно без items в deps
+  }, [initialKey, normalizedInitial]);
 
   // === добавление ===
   const canAdd = nameInput.trim().length > 0;
@@ -208,14 +206,14 @@ export default function ConfirmProductsPanel({
 
     const key = makeCacheKey(items);
     const names = items.map((i) => i.name);
-const detailedItems = items
-  .filter((i) => i.detailed && i.unit) // qty может быть пустым — нормализуем ниже
-  .map((i) => {
-    let q = Number(i.qty);
-    if (!Number.isFinite(q) || q <= 0) q = 1;
-    if (i.unit === "pcs") q = Math.max(1, Math.round(q));
-    return { name: i.name.trim(), qty: q, unit: i.unit as Unit };
-  });
+    const detailedItems = items
+      .filter((i) => i.detailed && i.unit)
+      .map((i) => {
+        let q = Number(i.qty);
+        if (!Number.isFinite(q) || q <= 0) q = 1;
+        if (i.unit === "pcs") q = Math.max(1, Math.round(q));
+        return { name: i.name.trim(), qty: q, unit: i.unit as Unit };
+      });
 
     try {
       // 0) client-cache
@@ -232,12 +230,21 @@ const detailedItems = items
         }
       } catch {}
 
+      // 👉 аналитика до реального запроса
+      try {
+        track("recipes_requested", { mode: "default", productsCount: names.length });
+      } catch {}
+
       // 1) запрос
       sessionStorage.removeItem("recipes_payload");
+      const sid = getSessionId?.();
 
       const res = await fetch("/api/recipes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(sid ? { "x-session-id": sid } : {}),
+        },
         body: JSON.stringify({
           products: names,       // как раньше — список имён
           items: detailedItems,  // НОВОЕ: только уточнённые позиции
@@ -318,47 +325,43 @@ const detailedItems = items
                 {it.detailed && (
                   <>
                     <input
-  type="number"
-  min={1}
-  step={it.unit === "pcs" ? 1 : 50}
-  className="w-24 border rounded px-2 py-1 text-sm"
-  value={it.qty === undefined ? "" : it.qty}   // ← даём стереть значение
-  onChange={(e) => {
-    const v = e.target.value;
-    if (v === "") {
-      // временно пусто — не навязываем 1
-      updateItem(i, { qty: undefined });
-      return;
-    }
-    // если вводят число — не форсим границы здесь
-    const num = Number(v);
-    if (!Number.isNaN(num)) {
-      updateItem(i, { qty: num });
-    }
-  }}
-  onBlur={() => {
-    // при уходе с поля нормализуем
-    const current = items[i]?.qty;
-    let nextQty =
-      current === undefined || Number.isNaN(Number(current)) || Number(current) <= 0
-        ? 1
-        : Number(current);
+                      type="number"
+                      min={1}
+                      step={it.unit === "pcs" ? 1 : 50}
+                      className="w-24 border rounded px-2 py-1 text-sm"
+                      value={it.qty === undefined ? "" : it.qty}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "") {
+                          updateItem(i, { qty: undefined });
+                          return;
+                        }
+                        const num = Number(v);
+                        if (!Number.isNaN(num)) {
+                          updateItem(i, { qty: num });
+                        }
+                      }}
+                      onBlur={() => {
+                        const current = items[i]?.qty;
+                        let nextQty =
+                          current === undefined || Number.isNaN(Number(current)) || Number(current) <= 0
+                            ? 1
+                            : Number(current);
 
-    // для штук — целое
-    if (items[i]?.unit === "pcs") {
-      nextQty = Math.round(nextQty);
-      if (nextQty < 1) nextQty = 1;
-    }
+                        if (items[i]?.unit === "pcs") {
+                          nextQty = Math.round(nextQty);
+                          if (nextQty < 1) nextQty = 1;
+                        }
 
-    if (nextQty !== current) {
-      updateItem(i, { qty: nextQty });
-    }
-  }}
-  inputMode="numeric"
-/>
+                        if (nextQty !== current) {
+                          updateItem(i, { qty: nextQty });
+                        }
+                      }}
+                      inputMode="numeric"
+                    />
 
                     <select
-                      className="w-24 border rounded px-2 py-1 textсм"
+                      className="w-24 border rounded px-2 py-1 text-sm"
                       value={it.unit ?? defaultUnitFor(it.name)}
                       onChange={(e) =>
                         updateItem(i, { unit: e.target.value as Unit })

@@ -1,7 +1,10 @@
-import type { RecipeDto } from "@/types/recipe";
-import OpenAI from "openai";
 import { cacheGet, cacheSet, makeRecipesKey } from "@/lib/cache";
 import { randomUUID } from "crypto";
+import type { RecipeDto } from "@/types/recipe";
+import OpenAI from "openai";
+import { NextRequest } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase-server";
+import { anonIdFrom } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -10,10 +13,18 @@ export const runtime = "nodejs";
 // —— важное: версия кэша, чтобы снести старые записи
 const CACHE_VER = "fast-v2";
 
+// простая проверка UUID v4 (добавь рядом с остальными константами сверху файла)
+const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+
 /** ——— Утилиты ——— */
 
 function uuid() {
-  try { return randomUUID(); } catch { return Math.random().toString(36).slice(2); }
+  try {
+    return randomUUID();
+  } catch {
+    return Math.random().toString(36).slice(2);
+  }
 }
 
 function minutesFromText(s: string): number | undefined {
@@ -31,10 +42,16 @@ function splitAmountUnit(qty: string | undefined): { amount?: number; unit?: str
 }
 
 function safeJsonParse<T>(text: string): T | null {
-  try { return JSON.parse(text) as T; } catch {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
     const m = text.match(/\{[\s\S]*\}$/);
     if (!m) return null;
-    try { return JSON.parse(m[0]) as T; } catch { return null; }
+    try {
+      return JSON.parse(m[0]) as T;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -49,7 +66,7 @@ function normalizeInput(productsInput: unknown) {
       typeof x === "string"
         ? { name: x.trim().toLowerCase() }
         : {
-            name: String(x?.name ?? "").trim().toLowerCase(),
+            name: String((x as any)?.name ?? "").trim().toLowerCase(),
             amount:
               typeof (x as any)?.amount === "string"
                 ? Number(String((x as any).amount).replace(",", "."))
@@ -75,14 +92,14 @@ function estimateServingsFromStock(
       .reduce((acc, x) => acc + (x.amount ?? 0), 0);
 
   const proteinG = sumBy((n) => /(мяс|куриц|говяд|свин|индейк|филе|фарш|рыб|тунец|лосос|язык)/i.test(n));
-  const pastaG   = sumBy((n) => /(паст|спагет|макарон)/i.test(n));
-  const grainG   = sumBy((n) => /(рис|гречк|перлов|пшён|пшено|булгур|кус-кус|овсян)/i.test(n));
-  const potatoG  = sumBy((n) => /(картоф)/i.test(n));
+  const pastaG = sumBy((n) => /(паст|спагет|макарон)/i.test(n));
+  const grainG = sumBy((n) => /(рис|гречк|перлов|пшён|пшено|булгур|кус-кус|овсян)/i.test(n));
+  const potatoG = sumBy((n) => /(картоф)/i.test(n));
 
   if (proteinG > 0) return Math.max(1, Math.round(proteinG / 180));
-  if (pastaG > 0)   return Math.max(1, Math.round(pastaG / 90));
-  if (grainG > 0)   return Math.max(1, Math.round(grainG / 80));
-  if (potatoG > 0)  return Math.max(1, Math.round(potatoG / 200));
+  if (pastaG > 0) return Math.max(1, Math.round(pastaG / 90));
+  if (grainG > 0) return Math.max(1, Math.round(grainG / 80));
+  if (potatoG > 0) return Math.max(1, Math.round(potatoG / 200));
   return undefined;
 }
 
@@ -162,9 +179,11 @@ function userPrompt(
   return [
     `Продукты пользователя: ${products.join(", ")}`,
     stockLines ? "\nС учётом количеств:\n" + stockLines : "",
-    guessedServings ? `\nЕсли не уверены, ориентируйтесь на ${guessedServings} порции.`.replace("gu", "g") : "", // harmless
+    guessedServings ? `\nЕсли не уверены, ориентируйтесь на ${guessedServings} порции.`.replace("gu", "g") : "",
     "\nВерни JSON ровно с 3 рецептами по требованиям из system.",
-  ].join("").trim();
+  ]
+    .join("")
+    .trim();
 }
 
 /** ——— Типы ответа модели ——— */
@@ -183,24 +202,15 @@ type ModelResponse = { recipes?: ModelRecipe[] };
 /** ——— Проверка fast-критериев ——— */
 function isFastEnough(r?: ModelRecipe): boolean {
   if (!r) return false;
-  const total = r.time?.total ?? ((r.time?.prep ?? 0) + (r.time?.cook ?? 0));
+  const total = r.time?.total ?? (r.time?.prep ?? 0) + (r.time?.cook ?? 0);
   const stepsCnt = r.steps?.length ?? 0;
   const ingsCnt = r.ingredients?.length ?? 0;
-  const text = [
-    r.title,
-    r.lead,
-    ...(r.steps ?? []),
-    ...(r.tips ?? []),
-    ...(r.equipment ?? []),
-  ].join(" ").toLowerCase();
+  const text = [r.title, r.lead, ...(r.steps ?? []), ...(r.tips ?? []), ...(r.equipment ?? [])]
+    .join(" ")
+    .toLowerCase();
 
   const banned = /духовк|запека|марин|томл|конфи|су вид|slow cook/;
-  return (
-    total >= 7 && total <= 10 &&
-    stepsCnt > 0 && stepsCnt <= 5 &&
-    ingsCnt > 0 && ingsCnt <= 8 &&
-    !banned.test(text)
-  );
+  return total >= 7 && total <= 10 && stepsCnt > 0 && stepsCnt <= 5 && ingsCnt > 0 && ingsCnt <= 8 && !banned.test(text);
 }
 
 async function regenerateFastRecipe(
@@ -219,7 +229,9 @@ async function regenerateFastRecipe(
     stockLines ? "\nС учётом количеств:\n" + stockLines : "",
     guessedServings ? `\nЕсли не уверены, ориентируйтесь на ${guessedServings} порции.` : "",
     "\nВерни ровно 1 быстрый рецепт в JSON по требованиям из system.",
-  ].join("").trim();
+  ]
+    .join("")
+    .trim();
 
   const resp = await client.chat.completions.create({
     model,
@@ -237,13 +249,13 @@ async function regenerateFastRecipe(
 /** ——— Маппер в наш RecipeDto ——— */
 function mapToDto(model: ModelRecipe[], guessedServings?: number): RecipeDto[] {
   return model.slice(0, 3).map((r, i) => {
-    const rawIngredients = (r.ingredients ?? []);
+    const rawIngredients = r.ingredients ?? [];
     const ingredients = rawIngredients.map((it) => {
       const { amount, unit } = splitAmountUnit(it.quantity);
       return { name: it.item, amount, unit };
     });
 
-    const rawSteps = (r.steps ?? []);
+    const rawSteps = r.steps ?? [];
     const maxSteps = i === 1 ? 5 : rawSteps.length;
     const steps = rawSteps.slice(0, maxSteps).map((s, idx) => {
       const parts = s.split(/—|:/).map((x) => x.trim()).filter(Boolean);
@@ -255,8 +267,9 @@ function mapToDto(model: ModelRecipe[], guessedServings?: number): RecipeDto[] {
     });
 
     const computedTotal =
-      (r.time?.total ?? ((r.time?.prep ?? 0) + (r.time?.cook ?? 0))) ||
-      (steps.length ? steps.length * 3 : 15);
+  (r.time?.total ?? ((r.time?.prep ?? 0) + (r.time?.cook ?? 0))) ||
+  (steps.length ? steps.length * 3 : 15);
+
 
     const isSecond = i === 1;
     const totalMin = isSecond ? Math.min(Math.max(7, computedTotal), 10) : computedTotal;
@@ -280,13 +293,17 @@ export async function GET() {
   );
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const startedAt = new Date().toISOString();
+  const t0 = Date.now();
+
   let body: unknown = {};
-  try { body = await req.json(); } catch {}
+  try {
+    body = await req.json();
+  } catch {}
 
   const productsInput =
-    body && typeof body === "object" && "products" in body
+    body && typeof body === "object" && "products" in (body as any)
       ? (body as { products: unknown }).products
       : undefined;
 
@@ -305,7 +322,9 @@ export async function POST(req: Request) {
         headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
       });
     }
-  } catch { /* продолжаем без кэша */ }
+  } catch {
+    /* продолжаем без кэша */
+  }
 
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
@@ -313,6 +332,8 @@ export async function POST(req: Request) {
   let dtoRecipes: RecipeDto[] = [];
   let modelRecipes: ModelRecipe[] = [];
   const guessedServings = estimateServingsFromStock(stock);
+  let usagePrompt = 0;
+  let usageCompletion = 0;
 
   try {
     const resp = await client.chat.completions.create({
@@ -325,6 +346,9 @@ export async function POST(req: Request) {
     });
 
     const text = resp.choices?.[0]?.message?.content ?? "{}";
+    usagePrompt = (resp as any)?.usage?.prompt_tokens ?? 0;
+    usageCompletion = (resp as any)?.usage?.completion_tokens ?? 0;
+
     const data = safeJsonParse<ModelResponse>(text);
 
     if (Array.isArray(data?.recipes)) {
@@ -338,29 +362,40 @@ export async function POST(req: Request) {
       }
       dtoRecipes = mapToDto(modelRecipes, guessedServings);
     }
-  } catch { /* упадём на фолбэк ниже */ }
+  } catch {
+    /* упадём на фолбэк ниже */
+  }
 
   // Фолбэк
-  if (dtoRecipes.length !== 3) {
-    const mk = (title: string, time_min: number): RecipeDto => ({
+if (dtoRecipes.length !== 3) {
+  const mk = (title: string, time_min: number): RecipeDto => {
+    return {
       id: uuid(),
       title,
-      portion: `${guessedServings ?? 2} ${(guessedServings ?? 2) === 1 ? "порция" : (guessedServings ?? 2) < 5 ? "порции" : "порций"}`,
+      portion: `${(guessedServings ?? 2)} ${
+        (guessedServings ?? 2) === 1 ? "порция" : (guessedServings ?? 2) < 5 ? "порции" : "порций"
+      }`,
       time_min,
-      ingredients: base.map((p, idx) => ({ name: p, amount: idx === 0 ? 2 : undefined, unit: idx === 0 ? "шт" : undefined })),
+      ingredients: base.map((p, idx) => ({
+        name: p,
+        amount: idx === 0 ? 2 : undefined,
+        unit: idx === 0 ? "шт" : undefined,
+      })),
       steps: [
         { order: 1, action: "Подготовить", detail: "нарезать ингредиенты", duration_min: 3 },
         { order: 2, action: "Обжарить", detail: "на сковороде на среднем огне", duration_min: 4 },
         { order: 3, action: "Довести", detail: "посолить, подать", duration_min: 3 },
       ],
-    });
+    };
+  };
 
-    dtoRecipes = [
-      mk(`Базовый рецепт: ${base.slice(0, 3).join(", ")}`, 15),
-      mk("На скорую руку", 9),
-      mk(`Интересный вариант: ${base.slice(0, 3).join(", ")}`, 20),
-    ];
-  }
+  dtoRecipes = [
+    mk(`Базовый рецепт: ${base.slice(0, 3).join(", ")}`, 15),
+    mk("На скорую руку", 9),
+    mk(`Интересный вариант: ${base.slice(0, 3).join(", ")}`, 20),
+  ];
+}
+
 
   const result = {
     ok: true,
@@ -369,7 +404,46 @@ export async function POST(req: Request) {
     trace: { router: "app", ts: startedAt, model, leads },
   };
 
-  try { await cacheSet(cacheKey, result, 60 * 60 * 24); } catch {}
+  try {
+    await cacheSet(cacheKey, result, 60 * 60 * 24);
+  } catch {}
+
+  // ✅ серверная аналитика: token_spent
+  // ✅ серверная аналитика: token_spent (реальный usage + валидный session_id)
+try {
+  // uid из куки (если нет — сгенерим), в anonId прогоняем твоей функцией
+  const rawUid = req.cookies.get("uid")?.value ?? randomUUID();
+  const anonId = anonIdFrom(rawUid);
+
+  // сессия приходит с клиента в x-session-id; если не UUID v4 — генерим новый
+  const sidHeader = req.headers.get("x-session-id") || "";
+  const sessionId = uuidV4.test(sidHeader) ? sidHeader : randomUUID();
+
+  const latencyMs = Date.now() - t0;
+  const totalTokens = (usagePrompt || 0) + (usageCompletion || 0);
+
+  await supabaseAdmin.from("events").insert({
+    ts: new Date().toISOString(),
+    anon_user_id: anonId,
+    session_id: sessionId, // гарантированно UUID v4
+    name: "token_spent",
+    payload: {
+      provider: "OpenAI",
+      model,
+      input_tokens: usagePrompt,
+      output_tokens: usageCompletion,
+      total_tokens: totalTokens,
+      latency_ms: latencyMs,
+      router: "app/api/recipes", // удобно для фильтрации (опционально)
+    },
+    ua: "server", // если колонка есть и nullable — запишется
+    // ip опускаем (пусть null)
+  });
+} catch (e) {
+  // не ломаем ответ пользователю, если аналитика не записалась
+  console.error("analytics token_spent failed:", e);
+}
+
 
   return new Response(JSON.stringify(result), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },

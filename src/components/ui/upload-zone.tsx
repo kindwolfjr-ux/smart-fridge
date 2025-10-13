@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { track } from "@/lib/analytics";
 
 type Props = {
   /** сообщим родителю, что распознали продукты + отдадим превью */
@@ -28,6 +29,16 @@ export default function UploadZone({
     try {
       try {
         await onFileSelected?.(file);
+      } catch {}
+
+      // 👉 аналитика: файл выбран/загружен пользователем
+      try {
+        const sizeKb = Math.round(file.size / 1024);
+        track("photo_uploaded", {
+          source: "file_input_or_dnd",
+          sizeKb,
+          type: file.type,
+        });
       } catch {}
 
       // читаем превью

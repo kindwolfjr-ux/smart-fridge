@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { track } from "@/lib/analytics";
 
 // ── Types ──────────────────────────────────────────────────────────────
 type Item = { id: string; name: string; checked: boolean };
@@ -39,6 +40,11 @@ export default function ConfirmList({ initial = [] }: Props) {
   const [input, setInput] = useState('');
   const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
+
+  // 👉 аналитика: панель ручного ввода открыта
+  useEffect(() => {
+    track("manual_input_used", { action: "open" });
+  }, []);
 
   // ?items=... из URL — мемоизируем, чтобы deps эффекта были простыми
   const itemsFromQuery = useMemo<string[]>(() => {
@@ -123,6 +129,13 @@ export default function ConfirmList({ initial = [] }: Props) {
   async function onConfirm() {
     if (!anyChecked) return;
     const products = selectedNames;
+
+    // 👉 аналитика: сабмит ручного ввода
+    try {
+      track("manual_input_used", { action: "submit", itemsCount: products.length });
+      // 👉 аналитика: запрос рецептов
+      track("recipes_requested", { mode: "default", productsCount: products.length });
+    } catch {}
 
     // метрики (не блокируют UX)
     void sendMetrics('confirm_list', {

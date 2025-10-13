@@ -1,11 +1,12 @@
 // src/components/manual-input.tsx
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import type { ProductQty } from "@/types/product";
+import { track } from "@/lib/analytics";
 
 type Props = {
   // старый режим совместимости (если кто-то ещё ждёт строку)
@@ -18,6 +19,7 @@ type Props = {
 export default function ManualInput({ onAdd, onAddQty, autoFocusName }: Props) {
   const [name, setName] = useState("");
   const [qty, setQty] = useState<number | "">("");
+  const trackedRef = useRef(false); // чтобы не слать событие много раз
 
   const canAdd =
     name.trim().length > 0 &&
@@ -27,6 +29,11 @@ export default function ManualInput({ onAdd, onAddQty, autoFocusName }: Props) {
 
   const commit = () => {
     if (!canAdd) return;
+    // ✅ аналитика: первое использование ручного ввода
+    if (!trackedRef.current) {
+      try { track("manual_input_used", {}); } catch {}
+      trackedRef.current = true;
+      }
     const item: ProductQty = { name: name.trim(), qty: Number(qty) };
     // предпочтительно отдаем новый формат
     onAddQty?.(item);
