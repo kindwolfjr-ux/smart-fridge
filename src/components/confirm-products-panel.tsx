@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RecipeDto } from "@/types/recipe";
+import { track, getSessionId } from "@/lib/analytics";
 
 type Unit = "g" | "ml" | "pcs";
 type ProductQty = {
@@ -234,10 +235,17 @@ const detailedItems = items
 
       // 1) запрос
       sessionStorage.removeItem("recipes_payload");
+       // ✅ аналитика: пользователь запросил рецепты
+       try { track("recipes_requested", {}); } catch {}
+       // прокинем sessionId в заголовок — серверу для token_spent
+       const sid = getSessionId?.();
 
       const res = await fetch("/api/recipes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(sid ? { "x-session-id": sid } : {}),
+          },
         body: JSON.stringify({
           products: names,       // как раньше — список имён
           items: detailedItems,  // НОВОЕ: только уточнённые позиции

@@ -8,6 +8,7 @@
 ├── package-lock.json
 ├── package.json
 ├── postcss.config.mjs
+├── project_tree.txt
 ├── public
 │   ├── assets
 │   ├── file.svg
@@ -24,12 +25,13 @@
 ├── tree.txt
 └── tsconfig.json
 
-8 directories, 16 files
+8 directories, 17 files
 
 ### SRC (depth 3)
 src
 ├── app
 │   ├── api
+│   │   ├── analytics
 │   │   ├── debug-env
 │   │   ├── metrics
 │   │   ├── openai-ping
@@ -48,6 +50,7 @@ src
 │       └── page.tsx
 ├── components
 │   ├── confirm-products-panel.tsx
+│   ├── ConsentModal.tsx
 │   ├── manual-input.tsx
 │   ├── ProgressButton.tsx
 │   ├── recipe-card.tsx
@@ -61,16 +64,18 @@ src
 │       ├── progress.tsx
 │       └── upload-zone.tsx
 ├── lib
+│   ├── analytics.ts
 │   ├── cache.ts
 │   ├── food-normalize.ts
 │   ├── normalize.ts
 │   ├── openai.ts
 │   ├── recipes-helpers.ts
 │   ├── recipes-sanitize.ts
+│   ├── supabase-server.ts
 │   ├── useStreamedRecipe.ts
 │   └── utils.ts
 └── types
     ├── product.ts
     └── recipe.ts
 
-16 directories, 29 files
+17 directories, 32 files
