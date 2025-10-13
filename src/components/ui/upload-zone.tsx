@@ -31,10 +31,15 @@ export default function UploadZone({
         await onFileSelected?.(file);
       } catch {}
 
+      // 👉 аналитика: файл выбран/загружен пользователем
       try {
         const sizeKb = Math.round(file.size / 1024);
-        track("photo_uploaded", { size_kb: sizeKb });
-         } catch {}
+        track("photo_uploaded", {
+          source: "file_input_or_dnd",
+          sizeKb,
+          type: file.type,
+        });
+      } catch {}
 
       // читаем превью
       const dataUrl = await new Promise<string>((resolve, reject) => {

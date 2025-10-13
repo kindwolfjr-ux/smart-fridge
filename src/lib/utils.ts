@@ -6,11 +6,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const SALT = process.env.ANON_SALT!;
+const SALT = process.env.ANALYTICS_UID_SALT ?? process.env.ANON_SALT ?? "";
 
 export function anonIdFrom(raw: string) {
   if (!SALT) {
-    console.warn("⚠️ ANON_SALT is not set. Set it in .env.local");
+    console.warn("⚠️ ANALYTICS_UID_SALT is not set in .env.local");
   }
-  return crypto.createHash("sha256").update(`${raw}|${SALT}`).digest("hex");
+  return crypto
+    .createHmac("sha256", SALT)
+    .update(raw)
+    .digest("hex")
+    .slice(0, 32);
 }

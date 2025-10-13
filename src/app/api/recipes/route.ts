@@ -13,6 +13,10 @@ export const runtime = "nodejs";
 // —— важное: версия кэша, чтобы снести старые записи
 const CACHE_VER = "fast-v2";
 
+// простая проверка UUID v4 (добавь рядом с остальными константами сверху файла)
+const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+
 /** ——— Утилиты ——— */
 
 function uuid() {
@@ -405,29 +409,41 @@ if (dtoRecipes.length !== 3) {
   } catch {}
 
   // ✅ серверная аналитика: token_spent
-  try {
-    const rawUid = req.cookies.get("uid")?.value ?? randomUUID();
-    const anonId = anonIdFrom(rawUid);
-    const sessionId = req.headers.get("x-session-id") || randomUUID();
-    const latencyMs = Date.now() - t0;
+  // ✅ серверная аналитика: token_spent (реальный usage + валидный session_id)
+try {
+  // uid из куки (если нет — сгенерим), в anonId прогоняем твоей функцией
+  const rawUid = req.cookies.get("uid")?.value ?? randomUUID();
+  const anonId = anonIdFrom(rawUid);
 
-    await supabaseAdmin.from("events").insert({
-      ts: new Date().toISOString(),
-      anon_user_id: anonId,
-      session_id: sessionId,
-      name: "token_spent",
-      payload: {
-        provider: "OpenAI",
-        model,
-        input_tokens: usagePrompt,
-        output_tokens: usageCompletion,
-        latency_ms: latencyMs,
-      },
-    });
-  } catch (e) {
-    // не ломаем ответ пользователю, если аналитика не записалась
-    console.error("analytics token_spent failed:", e);
-  }
+  // сессия приходит с клиента в x-session-id; если не UUID v4 — генерим новый
+  const sidHeader = req.headers.get("x-session-id") || "";
+  const sessionId = uuidV4.test(sidHeader) ? sidHeader : randomUUID();
+
+  const latencyMs = Date.now() - t0;
+  const totalTokens = (usagePrompt || 0) + (usageCompletion || 0);
+
+  await supabaseAdmin.from("events").insert({
+    ts: new Date().toISOString(),
+    anon_user_id: anonId,
+    session_id: sessionId, // гарантированно UUID v4
+    name: "token_spent",
+    payload: {
+      provider: "OpenAI",
+      model,
+      input_tokens: usagePrompt,
+      output_tokens: usageCompletion,
+      total_tokens: totalTokens,
+      latency_ms: latencyMs,
+      router: "app/api/recipes", // удобно для фильтрации (опционально)
+    },
+    ua: "server", // если колонка есть и nullable — запишется
+    // ip опускаем (пусть null)
+  });
+} catch (e) {
+  // не ломаем ответ пользователю, если аналитика не записалась
+  console.error("analytics token_spent failed:", e);
+}
+
 
   return new Response(JSON.stringify(result), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },

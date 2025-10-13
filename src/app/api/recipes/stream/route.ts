@@ -1,12 +1,18 @@
 // src/app/api/recipes/stream/route.ts
 import { NextRequest } from "next/server";
 import OpenAI from "openai";
+import { randomUUID } from "crypto";
+import { supabaseAdmin } from "@/lib/supabase-server";
+import { anonIdFrom } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type Variant = "basic" | "creative" | "upgrade" | "fast";
+
+// UUID v4 валидатор (для session_id)
+const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function normalizeStock(
   input: unknown
@@ -122,6 +128,8 @@ function makePrompts(
 
 // NDJSON-стрим: {"delta": "..."} ... {"done":true,"fullText":"..."}
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
+
   const body = await req.json().catch(() => ({}));
   const { names, stock } = normalizeStock((body as any).products);
 
@@ -163,10 +171,50 @@ export async function POST(req: NextRequest) {
             );
           }
         }
+
+        // закрываем стрим
         controller.enqueue(
           encoder.encode(JSON.stringify({ done: true, fullText }) + "\n")
         );
         controller.close();
+
+        // ── серверная аналитика token_spent (приблизительно для стрима) ──
+        try {
+          const rawUid = req.cookies.get("uid")?.value ?? randomUUID();
+          const anonId = anonIdFrom(rawUid);
+
+          const sidHeader = req.headers.get("x-session-id") || "";
+          const sessionId = uuidV4.test(sidHeader) ? sidHeader : randomUUID();
+
+          const latencyMs = Date.now() - t0;
+
+          // приблизительная оценка токенов по длине текста (≈ 4 символа / токен)
+          const charCount = fullText.length;
+          const approxTotalTokens = Math.max(1, Math.round(charCount / 4));
+
+          await supabaseAdmin.from("events").insert({
+            ts: new Date().toISOString(),
+            anon_user_id: anonId,
+            session_id: sessionId,
+            name: "token_spent",
+            payload: {
+              provider: "OpenAI",
+              model,
+              variant,
+              // usage в stream недоступен — логируем приближение
+              input_tokens: null,
+              output_tokens: null,
+              total_tokens: null,
+              approx_total_tokens: approxTotalTokens,
+              char_count: charCount,
+              latency_ms: latencyMs,
+              router: "app/api/recipes/stream",
+            },
+            ua: "server",
+          });
+        } catch (e) {
+          console.error("analytics token_spent (stream) failed:", e);
+        }
       } catch {
         controller.enqueue(
           encoder.encode(JSON.stringify({ error: "stream_failed" }) + "\n")
