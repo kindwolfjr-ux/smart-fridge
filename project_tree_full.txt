@@ -1,0 +1,106 @@
+.
+├── .env.local
+├── .github
+│   ├── pull_request_template.md
+│   └── workflows
+│       └── ci.yml
+├── .gitignore
+├── .vercel
+│   ├── project.json
+│   └── README.txt
+├── components.json
+├── eslint.config.mjs
+├── next-env.d.ts
+├── next.config.js
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── project_tree_full.txt
+├── project_tree.txt
+├── public
+│   ├── assets
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── README.md
+├── src
+│   ├── app
+│   │   ├── api
+│   │   │   ├── admin
+│   │   │   │   └── stats
+│   │   │   │       └── route.ts
+│   │   │   ├── analytics
+│   │   │   │   ├── ensure-uid
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── ingest
+│   │   │   │       └── route.ts
+│   │   │   ├── debug-env
+│   │   │   │   └── route.ts
+│   │   │   ├── metrics
+│   │   │   │   └── route.ts
+│   │   │   ├── openai-ping
+│   │   │   │   └── route.ts
+│   │   │   ├── ping
+│   │   │   │   └── route.ts
+│   │   │   ├── recipes
+│   │   │   │   ├── route.ts
+│   │   │   │   └── stream
+│   │   │   │       └── route.ts
+│   │   │   ├── scan
+│   │   │   │   └── route.ts
+│   │   │   └── types
+│   │   │       └── recipe.ts
+│   │   ├── confirm
+│   │   │   └── page.tsx
+│   │   ├── favicon.ico
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   ├── loading.tsx
+│   │   ├── page.tsx
+│   │   ├── recipes
+│   │   │   └── page.tsx
+│   │   └── settings
+│   │       └── page.tsx
+│   ├── components
+│   │   ├── confirm-products-panel.tsx
+│   │   ├── ConsentModal.tsx
+│   │   ├── FabSettings.tsx
+│   │   ├── InitAnalytics.tsx
+│   │   ├── manual-input.tsx
+│   │   ├── ProgressButton.tsx
+│   │   ├── recipe-card.tsx
+│   │   ├── settings
+│   │   │   ├── AnalyticsToggle.tsx
+│   │   │   └── page.tsx
+│   │   ├── streamed-recipes-demo.tsx
+│   │   └── ui
+│   │       ├── button.tsx
+│   │       ├── card.tsx
+│   │       ├── ConfirmList.tsx
+│   │       ├── input.tsx
+│   │       ├── label.tsx
+│   │       ├── progress.tsx
+│   │       └── upload-zone.tsx
+│   ├── lib
+│   │   ├── analytics-init.ts
+│   │   ├── analytics.ts
+│   │   ├── cache.ts
+│   │   ├── food-normalize.ts
+│   │   ├── normalize.ts
+│   │   ├── openai.ts
+│   │   ├── recipes-helpers.ts
+│   │   ├── recipes-sanitize.ts
+│   │   ├── supabase-server.ts
+│   │   ├── useStreamedRecipe.ts
+│   │   └── utils.ts
+│   ├── middleware.ts
+│   └── types
+│       ├── product.ts
+│       └── recipe.ts
+├── tree.txt
+└── tsconfig.json
+
+30 directories, 74 files
