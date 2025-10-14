@@ -1,36 +1,36 @@
-export const dynamic = "force-dynamic";
+"use client";
+import { useEffect, useState } from "react";
 
-type StatsShort = {
-  ok: boolean;
-  today: Record<string, number>;
-  last7: Record<string, number>;
-};
+type StatsShort = { ok: boolean; today: Record<string, number>; last7: Record<string, number> };
 
 function getCount(obj: Record<string, number> | undefined, ...keys: string[]) {
   if (!obj) return 0;
-  for (const k of keys) {
-    if (typeof obj[k] === "number") return obj[k]!;
-  }
+  for (const k of keys) if (typeof obj[k] === "number") return obj[k]!;
   return 0;
 }
 
-async function getStats(): Promise<StatsShort> {
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? "";
-  const res = await fetch(`${base}/api/admin/stats`, {
-    method: "GET",
-    cache: "no-store",
-    headers: { "x-admin-secret": process.env.ADMIN_SECRET ?? "" }, // SSR доступ через middleware
-  });
-  if (!res.ok) throw new Error(`Failed to load stats: ${res.status}`);
-  return res.json();
-}
+export default function AdminAnalyticsPage() {
+  const [data, setData] = useState<StatsShort | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
-export default async function AdminAnalyticsPage() {
-  const data = await getStats();
-  const today = data?.today ?? {};
-  const last7 = data?.last7 ?? {};
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/stats", { cache: "no-store" });
+        if (!res.ok) throw new Error(`Failed to load stats: ${res.status}`);
+        setData(await res.json());
+      } catch (e: any) {
+        setErr(e?.message ?? "Error");
+      }
+    })();
+  }, []);
 
-  // Поддерживаем разные названия полей (photo_upload vs photo_uploaded и т.п.)
+  if (err) return <div className="p-6 text-red-600">Error: {err}</div>;
+  if (!data) return <div className="p-6 text-gray-500">Loading…</div>;
+
+  const today = data.today ?? {};
+  const last7 = data.last7 ?? {};
+
   const kToday = {
     total: Object.values(today).reduce((a, b) => a + (typeof b === "number" ? b : 0), 0),
     app_open: getCount(today, "app_open"),
@@ -77,8 +77,6 @@ export default async function AdminAnalyticsPage() {
         <Card label="Last 7d / recipes" value={k7.recipes_requested} />
         <Card label="Last 7d / tokens" value={k7.token_spent} />
       </section>
-
-      {/* Когда решим расширить API — добавим таблицу последних событий и график */}
     </div>
   );
 }
