@@ -1,25 +1,33 @@
-// src/components/GAReporter.tsx
-"use client";
+// src/app/layout.tsx
+import "./globals.css";
+import type { Metadata } from "next";
+import ConsentModal from "@/components/ConsentModal";
+import InitAnalytics from "@/components/InitAnalytics";
+import FabSettings from "@/components/FabSettings";
 
-import { useEffect } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+export const metadata: Metadata = {
+  title: "Smart Fridge",
+  description: "Scan fridge, confirm items, get recipes",
+};
 
-declare global {
-  interface Window {
-    gtag?: (...args: any[]) => void;
-  }
-}
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="ru">
+      <body className="min-h-dvh bg-white text-gray-900 safe-top safe-bottom">
+        {/* Инициализация аналитики: cookie uid + sessionId + auto app_open */}
+        <InitAnalytics />
 
-export default function GAReporter({ gaId }: { gaId: string }) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+        {/* Модалка согласия — включит аналитику после клика "Разрешить" */}
+        <ConsentModal />
 
-  useEffect(() => {
-    if (!window.gtag || !gaId) return;
-    const url = pathname + (searchParams?.toString() ? `?${searchParams}` : "");
-    // Регистрируем просмотр страницы при каждом клиентском переходе
-    window.gtag("config", gaId, { page_path: url });
-  }, [pathname, searchParams, gaId]);
+        {/* Основной контент */}
+        <main className="mx-auto max-w-5xl px-4 py-6">
+          {children}
+        </main>
 
-  return null;
+        {/* Плавающая кнопка "Настройки" внизу справа */}
+        <FabSettings />
+      </body>
+    </html>
+  );
 }
