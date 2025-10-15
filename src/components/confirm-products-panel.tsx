@@ -285,8 +285,8 @@ export default function ConfirmProductsPanel({
   return (
     <section className="p-6 max-w-md mx-auto space-y-4">
       <h2 className="text-xl font-semibold">Подтвердите список продуктов</h2>
-      <p className="text-sm text-gray-500">
-        Добавьте продукты вручную или отсканируйте холодильник.
+      <p className="-mt-2 text-sm text-gray-500 leading-tight">
+        Добавьте продукты вручную<br />или сфотографируйте их
       </p>
 
       {/* Список с тумблером «Уточнить» */}
@@ -411,17 +411,18 @@ export default function ConfirmProductsPanel({
           Очистить
         </button>
 
-        {!hideAction && (
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={items.length === 0 || submitting}
-            className="flex-1 rounded-xl bg-green-600 text-white py-3 font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
-            aria-busy={submitting}
-          >
-            {submitting ? "Генерируем рецепты…" : "Показать рецепт"}
-          </button>
-        )}
+      {!hideAction && (
+      <button
+        type="button"
+        onClick={handleGenerate}
+        disabled={items.length === 0 || submitting}
+        className="w-full rounded-xl bg-black text-white py-3.5 font-medium shadow-sm hover:bg-gray-900 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-black/30 transition disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-busy={submitting}
+        >
+        {submitting ? "Генерируем рецепты…" : "Показать рецепты"}
+        </button>
+      )}
+
       </div>
     </section>
   );
