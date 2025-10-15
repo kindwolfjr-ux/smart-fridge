@@ -97,22 +97,22 @@ export default function HomePage() {
   };
 
   return (
-    <main className="p-6 max-w-md mx-auto space-y-6">
-      <h1 className="text-xl font-semibold">Что приготовить?</h1>
+      <main className="p-6 max-w-md mx-auto space-y-6 text-center">
+    <h1 className="text-xl font-semibold">Что сегодня готовим, Шеф?</h1>
 
-      {/* Обёртка с плавным изменением высоты */}
-      <div
-        className={[
-          "transition-all duration-500 ease-out overflow-hidden",
-          compactPhoto ? "max-h-40 sm:max-h-48" : "max-h-[22rem] sm:max-h-[28rem]",
-        ].join(" ")}
-      >
-        <UploadZone
-          compact={compactPhoto}
-          onRecognized={handleRecognized}
-          onScanningChange={setIsScanning}
-        />
-      </div>
+    {/* Обёртка с плавным изменением высоты */}
+    <div
+      className={[
+        "transition-all duration-500 ease-out overflow-hidden",
+        compactPhoto ? "max-h-40 sm:max-h-48" : "max-h-[22rem] sm:max-h-[28rem]",
+      ].join(" ")}
+    >
+      <UploadZone
+        compact={compactPhoto}
+        onRecognized={handleRecognized}
+        onScanningChange={setIsScanning}
+      />
+       </div>
 
       {isScanning && <p className="text-sm text-gray-500">Распознаём продукты…</p>}
 

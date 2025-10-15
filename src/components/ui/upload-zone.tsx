@@ -4,34 +4,27 @@ import { useState } from "react";
 import { track } from "@/lib/analytics";
 
 type Props = {
-  /** сообщим родителю, что распознали продукты + отдадим превью */
-  onRecognized: (products: string[], previewDataUrl?: string) => void; // <-- 2-й аргумент необязательный
-  /** показать/скрыть индикатор "Распознаем продукты..." на родителе */
+  onRecognized: (products: string[], previewDataUrl?: string) => void;
   onScanningChange?: (loading: boolean) => void;
-  /** по желанию: уведомить о выбранном файле */
   onFileSelected?: (file: File) => void | Promise<void>;
-  /** компактный режим (после распознавания) */
-  compact?: boolean; // <-- добавили
+  compact?: boolean;
 };
 
 export default function UploadZone({
   onRecognized,
   onScanningChange,
   onFileSelected,
-  compact = false, // <-- дефолт
+  compact = false,
 }: Props) {
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isOver, setIsOver] = useState(false); // подсветка при drag&drop
+  const [isOver, setIsOver] = useState(false);
 
-  // общая функция обработки файла (используем и для выбора, и для dnd)
   async function processFile(file: File) {
     try {
-      try {
-        await onFileSelected?.(file);
-      } catch {}
+      await onFileSelected?.(file);
 
-      // 👉 аналитика: файл выбран/загружен пользователем
+      // аналитика
       try {
         const sizeKb = Math.round(file.size / 1024);
         track("photo_uploaded", {
@@ -50,10 +43,9 @@ export default function UploadZone({
       });
 
       setPreview(dataUrl);
-
-      // запрос в /api/scan
       setLoading(true);
       onScanningChange?.(true);
+
       try {
         const res = await fetch("/api/scan", {
           method: "POST",
@@ -62,8 +54,9 @@ export default function UploadZone({
         });
         const data = await res.json();
 
-        // нормализуем продукты
-        const rawProducts: string[] = Array.isArray(data?.products) ? data.products : [];
+        const rawProducts: string[] = Array.isArray(data?.products)
+          ? data.products
+          : [];
         const products = Array.from(
           new Set(
             rawProducts
@@ -73,7 +66,7 @@ export default function UploadZone({
         );
 
         if (products.length) {
-          onRecognized(products, dataUrl); // второй аргумент опционален
+          onRecognized(products, dataUrl);
         } else {
           alert("Не удалось распознать продукты. Добавь вручную или выбери другое фото.");
         }
@@ -90,21 +83,21 @@ export default function UploadZone({
     }
   }
 
-  // выбор файла через инпут
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     await processFile(file);
   }
 
-  // dnd-обработчики
   function handleDragOver(e: React.DragEvent<HTMLLabelElement>) {
     e.preventDefault();
     setIsOver(true);
   }
+
   function handleDragLeave() {
     setIsOver(false);
   }
+
   async function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
     e.preventDefault();
     setIsOver(false);
@@ -118,7 +111,7 @@ export default function UploadZone({
       className={[
         "rounded-2xl border border-dashed",
         "transition-all duration-500 ease-out",
-        compact ? "p-3" : "p-0", // меньше паддинги в компактном
+        compact ? "p-3" : "p-0",
       ].join(" ")}
     >
       <label
@@ -133,13 +126,12 @@ export default function UploadZone({
         <input
           type="file"
           accept="image/*"
-          // на айфоне появится выбор: камера/медиатека/файлы
           capture="environment"
           className="hidden"
           onChange={handleFileChange}
         />
 
-        {/* оболочка drop-зоны */}
+        {/* Зона клика */}
         <div
           className={[
             "flex flex-col items-center justify-center text-center",
@@ -151,17 +143,35 @@ export default function UploadZone({
             <>
               {!compact && (
                 <>
-                  <div className="mb-2 text-base font-medium">Выбрать фото продуктов</div>
-                  <div className="text-xs text-gray-500">
-                    Нажми или перетащи сюда фото (камера/галерея)
+                  {/* 📸 Кликабельная иконка фотоаппарата */}
+                  <div className="mb-4 text-gray-400 transition-transform duration-200 hover:scale-110">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-14 w-14"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 7h3l1.5-2h9L18 7h3a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V8a1 1 0 011-1zm9 3a4 4 0 100 8 4 4 0 000-8z"
+                      />
+                    </svg>
                   </div>
 
-                  <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-white">
-                    {loading ? "Сканируем…" : "Загрузить фото"}
+                  <div className="mb-2 text-base font-medium">
+                    Нажми, чтобы сфоткать продукты
                   </div>
+                  <div className="text-xs text-gray-500">
+                      Поставь продукты на стол — я подскажу,<br />
+                      что приготовить
+                  </div>
+
+                  {/* Кнопку убрали, иконка — теперь главный CTA */}
                 </>
               )}
-              {/* В компактном режиме до превью ничего не показываем */}
             </>
           ) : (
             <div className="w-full">
@@ -174,9 +184,10 @@ export default function UploadZone({
                   compact ? "h-28" : "max-h-64",
                 ].join(" ")}
               />
-              {/* подпись показываем только если реально идёт сканирование */}
               {loading && (
-                <div className="mt-2 text-xs text-gray-500">Распознаём продукты…</div>
+                <div className="mt-2 text-xs text-gray-500">
+                  Распознаём продукты…
+                </div>
               )}
             </div>
           )}
