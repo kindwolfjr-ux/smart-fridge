@@ -1,99 +1,130 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-/* Мягкий читаемый шрифт как на референсе */
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap");
 
-/* вариант для тёмной темы */
-@custom-variant dark (&:is(.dark *));
-
-/* сопоставляем tailwind-цвета с CSS-переменными */
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-}
-
-/* светлая тема */
+/* НЕ используем системную тёмную тему — всё всегда светлое */
 :root {
+  color-scheme: light;
+
+  /* базовые токены для светлой темы */
   --bg: #ffffff;
-  --fg: #0a0a0a;
+  --fg: #0f172a;             /* slate-900 */
   --muted: #f5f5f5;
-  --muted-fg: #6b7280;  /* gray-500/600 */
-  --border: #e5e7eb;    /* gray-200 */
+  --muted-fg: #6b7280;       /* gray-500/600 */
+  --border: #e5e7eb;         /* gray-200 */
+
+  /* совместимость с shadcn/tailwind через CSS-переменные */
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 222.2 84% 4.9%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --ring: 215 20.2% 65.1%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --radius: 16px;
 }
 
-/* Нейтральные карточки без «персика» и градиентов */
+/* Даже если где-то прокинут класс .dark — делаем те же светлые значения */
+.dark {
+  color-scheme: light;
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 222.2 84% 4.9%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --ring: 215 20.2% 65.1%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+}
+
+/* База Tailwind */
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-white text-slate-900;
+    font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+    background-color: #ffffff !important;
+  }
+}
+
+/* iOS safe-area helpers */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-top { padding-top: env(safe-area-inset-top); }
+
+/* Приятнее тапы на iOS */
+* { -webkit-tap-highlight-color: rgba(0,0,0,0); }
+
+/* ===== Компонентные стили в «светлом» ключе ===== */
+
+/* Нейтральные карточки */
 .glass-card,
 .glass {
+  position: relative;
   background: #ffffff;
   border: 1px solid var(--border);
+  border-radius: 24px;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   box-shadow: 0 6px 20px rgba(0,0,0,0.06);
 }
-
+.glass-card::before,
+.glass::before { content: none; }
 .glass-border { border-color: var(--border); }
-/* было тёплое свечение — сделаем нейтральное */
-.glass-glow {
-  box-shadow: 0 12px 40px rgba(0,0,0,.06) !important;
-  /* никаких оранжевых теней/радиальных градиентов */
+.glass-glow { box-shadow: 0 12px 40px rgba(0,0,0,.06) !important; }
+
+/* Камера — серый спокойный вид */
+.camera-wrap {
+  border: 2px solid #d1d5db !important;
+  border-radius: 9999px;
+  padding: 18px;
+  box-shadow: none !important;
+  background: radial-gradient(60px 60px at 50% 50%, rgba(255,255,255,.9), rgba(255,255,255,.6));
 }
+.camera-wrap::after { display: none !important; }
+.camera-icon { color: #525252; } /* gray-600 */
 
-
-/* Камера и ореол – в серый */
-.camera-icon { color: #525252; }         /* gray-600 */
-.camera-wrap::before,
-.camera-wrap::after { display: none !important; } /* убираем пульсации/ореолы, если были */
-
-/* Нейтральные «мягкие» кнопки (вместо оранжевых) */
+/* Нейтральные дополнительные кнопки */
 .btn-soft {
-  background: #f5f5f5;           /* gray-100 */
+  background: #f5f5f5;
   color: #0a0a0a;
   border: 1px solid #e5e7eb;
   transition: background 120ms ease, border-color 120ms ease;
 }
 .btn-soft:hover {
-  background: #eeeeee;           /* чуть темнее */
-  border-color: #d1d5db;         /* gray-300 */
+  background: #eeeeee;
+  border-color: #d1d5db;
 }
 
-/* Сегменты единиц (g/ml/pcs) – серые */
+/* CTA (персиковая) — остаётся акцентной */
+.btn-peach {
+  background: linear-gradient(180deg, #f39a6a 0%, #e6865b 100%);
+  color: #fff;
+}
+.btn-peach:hover { filter: brightness(0.98); }
+.btn-peach:disabled { opacity: .4; }
+
+/* Сегмент выбора единиц */
 .seg {
   display: inline-flex;
   background: #f5f5f5;
@@ -105,218 +136,26 @@
   padding: 6px 10px;
   border-radius: 10px;
   font-size: 13px;
-  color: #111827;               /* gray-900 */
+  color: #111827; /* gray-900 */
 }
 .seg-btn[aria-pressed="true"] {
   background: #ffffff;
   border: 1px solid #e5e7eb;
 }
 
-/* ЕДИНСТВЕННАЯ оранжевая кнопка — CTA */
-.btn-peach {
-  background: linear-gradient(180deg, #f39a6a 0%, #e6865b 100%);
-  color: #fff;
-}
-.btn-peach:hover { filter: brightness(0.98); }
-.btn-peach:disabled { opacity: .4; }
+/* ===== Удаляем/нейтрализуем фоновые градиенты ===== */
 
-
-
-/* тёмная тема */
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
-@layer base {
-  * { @apply border-border; }
-  body {
-    @apply bg-background text-foreground;
-    font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
-  }
-}
-
-/* iOS safe-area helpers */
-.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-.safe-top { padding-top: env(safe-area-inset-top); }
-
-/* приятнее тапы на iOS */
-* { -webkit-tap-highlight-color: rgba(0,0,0,0); }
-
-/* ===================== UTILITIES ===================== */
-@layer utilities {
-  /* ---------- BACKDROP (как на референсе) ---------- */
-  .app-gradient {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    background:
-      radial-gradient(1200px 800px at 12% 16%, rgba(255, 200, 168, .38), transparent 60%),
-      radial-gradient(900px 700px at 84% 12%, rgba(255, 230, 208, .45), transparent 60%),
-      radial-gradient(1100px 900px at 50% 100%, rgba(255, 214, 186, .42), transparent 60%),
-      linear-gradient(180deg, var(--peach-1) 0%, var(--peach-2) 48%, var(--peach-3) 100%);
-  }
-.app-gradient::before {
-  content: "";
-  position: absolute; inset: 0;
-  background:
-    radial-gradient(120% 100% at 0% 0%, rgba(255,255,255,.25), transparent 40%),
-    radial-gradient(100% 120% at 100% 100%, rgba(255,255,255,.18), transparent 42%),
-    conic-gradient(from 200deg at 20% 0%, rgba(255,255,255,.04), transparent 25% 60%, rgba(255,255,255,.04) 80%, transparent 100%);
-  mix-blend-mode: screen;
-  animation: bg-shift 16s ease-in-out infinite alternate;
-  pointer-events: none;
-}
-
-  @keyframes bg-shift {
-    0%   { transform: translateY(0);   filter: hue-rotate(0deg)   saturate(1); }
-    100% { transform: translateY(-1%); filter: hue-rotate(-6deg) saturate(1.05); }
-  }
-
-  /* ---------- UNIFIED GLASS CARD ---------- */
-  /* Совместимость: .glass и .glass-card — одно и то же */
-  .glass-card, .glass {
-    position: relative;
-    background: rgba(255,255,255,.78);
-    border: 1px solid rgba(255,255,255,.66);
-    border-radius: 24px;
-    -webkit-backdrop-filter: blur(22px) saturate(1.08);
-    backdrop-filter: blur(22px) saturate(1.08);
-    box-shadow:
-      0 24px 48px rgba(240, 154, 121, .18),
-      0 8px 18px rgba(240, 154, 121, .12),
-      inset 0 1px 0 rgba(255,255,255,.85);
-  }
-.glass-card::before, .glass::before {
-  content: "";
-  position: absolute; inset: 0; border-radius: inherit;
-  background:
-    radial-gradient(140% 120% at 10% 8%, rgba(255,255,255,.48), transparent 36%),
-    radial-gradient(120% 120% at 90% 92%, rgba(255,255,255,.22), transparent 42%);
-  pointer-events: none;
-}
-
-  /* совместимость со старым классом */
-  .glass-border { border-color: rgba(255,255,255,.66); }
-
-  /* ---------- PRIMARY CTA (персиковая) ---------- */
-  .btn-peach {
-    background: linear-gradient(135deg, var(--peach-4) 0%, var(--peach-5) 35%, var(--peach-6) 65%, var(--peach-4) 100%);
-    background-size: 200% 200%;
-    color: #fff;
-    box-shadow:
-      0 10px 28px rgba(244, 167, 120, .38),
-      0 3px 10px rgba(240, 154, 121, .28);
-    animation: gradient-move 6s ease infinite;
-  }
-  .btn-peach:hover { filter: brightness(1.02); }
-  .btn-peach:active { transform: translateY(1px) scale(.995); }
-  @keyframes gradient-move {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-
-  /* ---------- Secondary pills (+ Добавить / × Очистить) ---------- */
-  .btn-soft {
-    background: rgba(255,255,255,.7);
-    border: 1px solid rgba(255,255,255,.55);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
-    animation: soft-glow 3.4s ease-in-out infinite;
-  }
-  @keyframes soft-glow {
-    0%,100% {
-      box-shadow:
-        0 10px 24px rgba(244,167,120,.18),
-        0 3px 10px rgba(244,167,120,.12),
-        inset 0 1px 0 rgba(255,255,255,.8);
-    }
-    50% {
-      box-shadow:
-        0 14px 30px rgba(244,167,120,.28),
-        0 4px 12px rgba(244,167,120,.18),
-        inset 0 1px 0 rgba(255,255,255,.8);
-    }
-  }
-
-  /* ---------- Камера с аурой ---------- */
-  .camera-wrap {
-    position: relative;
-    width: 112px; height: 112px;
-    border-radius: 9999px;
-    background: radial-gradient(60px 60px at 50% 50%, rgba(255,255,255,.9), rgba(255,255,255,.6));
-    border: 2px solid rgba(255, 175, 143, .8);
-    box-shadow:
-      0 8px 30px rgba(244, 167, 120, .28),
-      inset 0 2px 8px rgba(255,255,255,.9);
-  }
- .camera-wrap::after { display: none !important; }
-
-/* кольцо вокруг камеры – серое */
-.camera-wrap {
-  border: 2px solid #d1d5db !important;   /* gray-300 */
-  border-radius: 9999px;
-  padding: 18px;                           /* чтобы было «кольцо» */
-  box-shadow: none !important;             /* без персиковых теней */
-}
-  .camera-icon { color: #f28f6d; animation: cam-breathe 3s ease-in-out infinite; }
-  @keyframes aura   { 0%,100% { opacity:.6; transform:scale(1);} 50% { opacity:.9; transform:scale(1.05);} }
-  @keyframes cam-breathe { 0%,100% { transform:scale(1);} 50% { transform:scale(1.06);} }
-
-  /* ---------- Сегмент-контрол (г/мл/шт) ---------- */
-  .seg {
-    display: inline-flex; gap: 8px; padding: 6px; border-radius: 9999px;
-    background: rgba(255,255,255,.7);
-    border: 1px solid rgba(255,255,255,.55);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
-  }
-  .seg-btn {
-    min-width: 44px; padding: 8px 12px; border-radius: 12px; font-weight: 700;
-    color: #9a6a56; letter-spacing: .02em;
-    transition: transform .15s ease, background .2s ease, color .2s ease;
-  }
-  .seg-btn[aria-pressed="true"] {
-    background: #ef8f6b; color: #fff;
-    box-shadow: 0 8px 18px rgba(239, 143, 107, .28), inset 0 1px 0 rgba(255,255,255,.6);
-  }
-  .seg-btn:active { transform: translateY(1px); }
-}
-
-/* мягкая вуаль сверху карточки для лучшего контраста текста */
-.glass-contrast::after {
-  content: "";
-  position: absolute;
+/* Если где-то осталась разметка <div class="app-gradient" />, сделаем её белой */
+.app-gradient {
+  position: fixed;
   inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,.28) 28%, transparent 60%);
-  pointer-events: none;
+  z-index: -1;
+  background: #ffffff !important;
+}
+.app-gradient::before { content: none !important; }
+
+/* Для корня приложения — гарантируем белый фон */
+html, body, #__next, #root {
+  min-height: 100%;
+  background: #ffffff !important;
 }
