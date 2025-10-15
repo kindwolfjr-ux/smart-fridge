@@ -20,23 +20,32 @@ export default function RecipesPage() {
 
   if (products.length === 0) {
     return (
-      <main className="p-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-semibold mb-4">Ваши рецепты</h1>
-        <p className="text-sm text-gray-500">
-          Сначала добавьте продукты на главной странице.
-        </p>
+      <main className="p-6 mx-auto space-y-6 text-center max-w-xl sm:max-w-2xl">
+        <h1 className="whitespace-nowrap text-[22px] sm:text-3xl md:text-4xl font-extrabold tracking-tight text-[#1e1e1e] leading-tight">
+          Ваши рецепты
+        </h1>
+        <section className="glass rounded-3xl border glass-border p-4 text-left text-slate-900">
+          <p className="text-sm text-gray-600">
+            Сначала добавьте продукты на главной странице.
+          </p>
+        </section>
       </main>
     );
   }
 
   return (
-    <main className="p-6 space-y-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-semibold">Ваши рецепты</h1>
+    <main className="p-6 mx-auto space-y-6 text-center max-w-xl sm:max-w-2xl">
+      <h1 className="whitespace-nowrap text-[22px] sm:text-3xl md:text-4xl font-extrabold tracking-tight text-[#1e1e1e] leading-tight">
+        Ваши рецепты
+      </h1>
 
-      {/* Только стрим: два рецепта печатаются сразу, третий — по клику */}
-      <StreamedRecipesDemo products={products} />
-
-      {/* Если позже понадобится — сюда вернём карточки на основе распарсенного стрима */}
+      {/* стеклянная зона контента — как на главной */}
+      <section className="glass rounded-3xl border glass-border p-4 text-left text-slate-900">
+        {/* сам стрим рецептов */}
+        <div className="grid gap-4">
+          <StreamedRecipesDemo products={products} hideTitle />
+        </div>
+      </section>
     </main>
   );
 }

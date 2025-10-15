@@ -1,0 +1,72 @@
+.
+├── .env.local
+├── .github
+│   ├── pull_request_template.md
+│   └── workflows
+│       └── ci.yml
+├── .gitignore
+├── .vercel
+│   ├── project.json
+│   └── README.txt
+├── components.json
+├── eslint.config.mjs
+├── next-env.d.ts
+├── next.config.js
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── project_tree_full.txt
+├── project-tree.txt
+├── public
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── robots.txt
+│   ├── vercel.svg
+│   └── window.svg
+├── README.md
+├── src
+│   ├── _middleware.ts
+│   ├── app
+│   │   ├── admin
+│   │   ├── api
+│   │   ├── confirm
+│   │   ├── favicon.ico
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   ├── loading.tsx
+│   │   ├── page.tsx
+│   │   ├── recipes
+│   │   └── settings
+│   ├── components
+│   │   ├── confirm-products-panel.tsx
+│   │   ├── ConsentModal.tsx
+│   │   ├── FabSettings.tsx
+│   │   ├── InitAnalytics.tsx
+│   │   ├── manual-input.tsx
+│   │   ├── ProgressButton.tsx
+│   │   ├── recipe-card.tsx
+│   │   ├── settings
+│   │   ├── streamed-recipes-demo.tsx
+│   │   └── ui
+│   ├── lib
+│   │   ├── analytics-init.ts
+│   │   ├── analytics.ts
+│   │   ├── cache.ts
+│   │   ├── food-normalize.ts
+│   │   ├── normalize.ts
+│   │   ├── openai.ts
+│   │   ├── recipes-helpers.ts
+│   │   ├── recipes-sanitize.ts
+│   │   ├── supabase-server.ts
+│   │   ├── useStreamedRecipe.ts
+│   │   └── utils.ts
+│   ├── middleware.ts
+│   └── types
+│       ├── product.ts
+│       └── recipe.ts
+├── tree.txt
+└── tsconfig.json
+
+17 directories, 53 files

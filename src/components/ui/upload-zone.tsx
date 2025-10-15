@@ -128,36 +128,53 @@ export default function UploadZone({
           ].join(" ")}
         >
           {!preview ? (
-            <>
-              {!compact && (
-                <>
-                  {/* Камера с ореолом и пульсацией */}
-                  <div className="camera-wrap mb-5 flex items-center justify-center">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-12 w-12 camera-icon"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={1.7}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M3 7h3l1.5-2h9L18 7h3a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V8a1 1 0 011-1zm9 3a4 4 0 100 8 4 4 0 000-8z"
-                      />
-                    </svg>
-                  </div>
+            // ----------- НОВАЯ ЛОГИКА -----------
+            compact ? (
+              // компактный режим: только маленькая иконка камеры
+              <div className="flex items-center justify-center py-2">
+  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-gray-300 bg-white/90 shadow-sm">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-7 w-7 text-gray-700"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M3 7h3l1.5-2h9L18 7h3a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V8a1 1 0 011-1zm9 3a4 4 0 100 8 4 4 0 000-8z" />
+    </svg>
+  </div>
+</div>
 
-                  <div className="text-1xl font-extrabold tracking-tight text-[#1e1e1e]">
-                    Нажми, чтобы сфоткать продукты
-                  </div>
-                  <div className="mt-0 text-sm text-gray-600">
-                    Покажи что у тебя есть
-                  </div>
-                </>
-              )}
-            </>
+            ) : (
+              // полноразмерный режим: большая иконка + тексты
+              <>
+                <div className="camera-wrap mb-5 flex items-center justify-center">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 camera-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.7}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 7h3l1.5-2h9L18 7h3a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V8a1 1 0 011-1zm9 3a4 4 0 100 8 4 4 0 000-8z"
+                    />
+                  </svg>
+                </div>
+                <div className="text-1xl font-extrabold tracking-tight text-[#1e1e1e]">
+                  Нажми, чтобы сфоткать продукты
+                </div>
+                <div className="mt-0 text-sm text-gray-600">
+                  Покажи что у тебя есть
+                </div>
+              </>
+            )
+            // ------------------------------------
           ) : (
             <div className="w-full">
               {/* eslint-disable-next-line @next/next/no-img-element */}

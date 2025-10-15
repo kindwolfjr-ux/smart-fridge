@@ -4,9 +4,12 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useStreamedRecipe } from "@/lib/useStreamedRecipe";
 
-type Props = { products: string[] };
+type Props = {
+  products: string[];
+  hideTitle?: boolean; // можно передать, чтобы скрыть внутренний заголовок
+};
 
-export default function StreamedRecipesDemo({ products }: Props) {
+export default function StreamedRecipesDemo({ products, hideTitle = false }: Props) {
   const p = useMemo(
     () => products.map((s) => s.trim()).filter(Boolean),
     [products]
@@ -23,16 +26,18 @@ export default function StreamedRecipesDemo({ products }: Props) {
     if (p.length === 0) return;
     startedRef.current = true;
 
-    // 1️⃣ Базовый — повседневное блюдо
     a.start({ products: p, variant: "basic" });
-
-    // 2️⃣ Что-то интересное — необычная техника/идея
     b.start({ products: p, variant: "creative" });
   }, [p, a, b]);
 
   return (
     <div className="space-y-8">
-      <h2 className="text-lg font-semibold">Ваши рецепты</h2>
+      {/* внутренний заголовок показываем только если НЕ пришёл hideTitle */}
+      {!hideTitle && (
+        <h2 className="whitespace-nowrap text-[20px] sm:text-2xl font-extrabold tracking-tight text-[#1e1e1e] leading-tight mb-2">
+          Ваши рецепты
+        </h2>
+      )}
 
       <RecipeStreamCard
         title="Базовый рецепт"
@@ -51,24 +56,23 @@ export default function StreamedRecipesDemo({ products }: Props) {
       />
 
       <div className="pt-4 border-t border-border">
-        <button
-          className="rounded-2xl border border-border bg-background px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
-          disabled={c.isRunning}
-          onClick={() => c.start({ products: p, variant: "upgrade" })}
-        >
-          {c.isRunning ? "Генерируем 3-й…" : "Хочу ещё (вкусный апгрейд)"}
-        </button>
-
-        {c.text && (
-          <div className="mt-6">
-            <RecipeStreamCard
-              title="Вкусный апгрейд"
-              subtitle="То же самое, но вкуснее: добавь до 3 продуктов"
-              text={c.text}
-              running={c.isRunning}
-              error={c.error}
-            />
-          </div>
+        {(c.isRunning || c.text) ? (
+          // Сразу показываем карточку на месте кнопки
+          <RecipeStreamCard
+            title="Вкусный апгрейд"
+            subtitle="То же самое, но вкуснее: добавь до 3 продуктов"
+            text={c.text}
+            running={c.isRunning}
+            error={c.error}
+          />
+        ) : (
+          // До клика — оранжевая CTA
+          <button
+            className="btn-peach w-full sm:w-auto rounded-[28px] px-6 py-4 font-medium text-white focus:outline-none focus:ring-2 focus:ring-white/30 disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={() => c.start({ products: p, variant: "upgrade" })}
+          >
+            Хочу ещё (вкусный апгрейд)
+          </button>
         )}
       </div>
     </div>
@@ -96,9 +100,7 @@ function RecipeStreamCard({
   return (
     <div className="rounded-2xl border border-border bg-background p-5 text-base leading-relaxed text-foreground shadow-sm">
       <div className="font-semibold text-lg">{firstLine?.trim() || title}</div>
-      {subtitle && (
-        <div className="text-sm text-gray-500 mb-2">{subtitle}</div>
-      )}
+      {subtitle && <div className="text-sm text-gray-500 mb-2">{subtitle}</div>}
 
       <p className="whitespace-pre-wrap text-sm leading-6 mt-1">
         {body || (running ? "…" : "—")}

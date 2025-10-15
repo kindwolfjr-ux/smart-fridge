@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import type { RecipeDto } from "@/types/recipe";
-import { track, getSessionId } from "@/lib/analytics";
-import { X } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp } from "lucide-react";
+
 
 type Unit = "g" | "ml" | "pcs";
-type ProductQty = { name: string; detailed?: boolean; qty?: number; unit?: Unit };
+export type ProductQty = { name: string; detailed?: boolean; qty?: number; unit?: Unit };
+
 type ConfirmProductsPanelProps = {
   initialItems?: string[];
   onClear?: () => void;
@@ -15,46 +14,43 @@ type ConfirmProductsPanelProps = {
   hideAction?: boolean;
   onChangeQty?: (items: ProductQty[]) => void;
 };
-type RecipeWithLead = RecipeDto & { lead?: string };
 
-const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, " ").replace(/ё/g, "е");
+const norm = (s: string) =>
+  s.toLowerCase().trim().replace(/\s+/g, " ").replace(/ё/g, "е");
 
-function defaultUnitFor(name: string): Unit {
+const defaultUnitFor = (name: string): Unit => {
   const n = norm(name);
-  const isLiquid = /(молок|сливк|вода|соус|масло|йогурт|кефир|морожен|бульон|сок|напит|молочн|слив)/.test(n);
-  const isPiece = /(огурц|помидор|яйц|лук|яблок|банан|перец|томат|булоч|батон|зубчик|томат)/.test(n);
-  const isLeafy = /(лист|зелень|базилик|укроп|петрушк|кинз)/.test(n);
+  const isLiquid = /(молок|сливк|вода|соус|масло|йогурт|кефир|бульон|сок|напит)/.test(n);
+  const isPiece =
+    /(огурц|помидор|яйц|лук|яблок|банан|перец|томат|зубчик|булоч|батон)/.test(n);
   if (isLiquid) return "ml";
-  if (isPiece || isLeafy) return "pcs";
+  if (isPiece) return "pcs";
   return "g";
-}
+};
 
 export default function ConfirmProductsPanel({
   initialItems = [],
   onClear,
   onChange,
   onChangeQty,
-  hideAction = false,
+  hideAction = true,
 }: ConfirmProductsPanelProps) {
-  const router = useRouter();
-
   const [items, setItems] = useState<ProductQty[]>([]);
   const [nameInput, setNameInput] = useState("");
-  const [qtyInput, setQtyInput] = useState<number | "">("");
-  const [submitting, setSubmitting] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [qtyInput, setQtyInput] = useState<string>("");
+  const [unitInput, setUnitInput] = useState<Unit>("pcs");
 
-  const lastEmittedRef = useRef<string>("");
+  // ── анимация раскрытия блока количества
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const [detailsHeight, setDetailsHeight] = useState(0);
+  useEffect(() => {
+    const el = detailsRef.current;
+    if (!el) return;
+    setDetailsHeight(showDetails ? el.scrollHeight : 0);
+  }, [showDetails, qtyInput, unitInput]);
 
-  const emitChange = (next: ProductQty[]) => {
-    const key = next
-      .map((i) => (i.detailed ? `${norm(i.name)}:${i.qty ?? ""}${i.unit ?? ""}` : `${norm(i.name)}`))
-      .join("|");
-    if (key === lastEmittedRef.current) return;
-    lastEmittedRef.current = key;
-    onChange?.(next.map((i) => i.name));
-    onChangeQty?.(next);
-  };
-
+  // ── init из initialItems
   const normalizedInitial = useMemo<ProductQty[]>(() => {
     const seen = new Set<string>();
     const result: ProductQty[] = [];
@@ -71,323 +67,296 @@ export default function ConfirmProductsPanel({
 
   const initialKeyRef = useRef<string>("");
   const initialKey = useMemo(
-    () => (initialItems ?? []).map((x) => norm(String(x))).filter(Boolean).sort().join("|"),
+    () =>
+      (initialItems ?? [])
+        .map((x) => norm(String(x)))
+        .filter(Boolean)
+        .sort()
+        .join("|"),
     [initialItems]
   );
 
   useEffect(() => {
-    const currentNamesKey = items.map((i) => norm(i.name)).sort().join("|");
     if (!initialKeyRef.current) {
       setItems(normalizedInitial);
-      lastEmittedRef.current = normalizedInitial
-        .map((i) => `${norm(i.name)}${i.detailed ? `:${i.qty}${i.unit}` : ""}`)
-        .join("|");
       initialKeyRef.current = initialKey;
-      return;
-    }
-    if (initialKey !== initialKeyRef.current && items.length === 0 && currentNamesKey === "") {
+    } else if (initialKey !== initialKeyRef.current && items.length === 0) {
       setItems(normalizedInitial);
-      lastEmittedRef.current = normalizedInitial
-        .map((i) => `${norm(i.name)}${i.detailed ? `:${i.qty}${i.unit}` : ""}`)
-        .join("|");
       initialKeyRef.current = initialKey;
-      return;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialKey, normalizedInitial]);
 
+  // ── эмит наверх
+  const lastSig = useRef("");
+  const emit = (next: ProductQty[]) => {
+    const sig = next
+      .map((i) =>
+        i.detailed
+          ? `${norm(i.name)}:${i.qty ?? ""}${i.unit ?? ""}`
+          : norm(i.name)
+      )
+      .join("|");
+    if (sig === lastSig.current) return;
+    lastSig.current = sig;
+    onChange?.(next.map((i) => i.name));
+    onChangeQty?.(next);
+  };
+
+  // ── добавление
   const canAdd = nameInput.trim().length > 0;
 
-  const handleAdd = () => {
-    if (!canAdd) return;
-    const name = nameInput.trim();
-    const k = norm(name);
-    const existsIdx = items.findIndex((i) => norm(i.name) === k);
-    if (existsIdx >= 0) {
-      setNameInput("");
-      setQtyInput("");
-      return;
+  const commitItem = () => {
+  if (!canAdd) return;
+
+  const name = nameInput.trim();
+  const key = norm(name);
+
+  // если такой продукт уже есть — обновляем его количеством/единицей
+  const existsIdx = items.findIndex((i) => norm(i.name) === key);
+  if (existsIdx >= 0) {
+    const next = [...items];
+
+    if (showDetails && qtyInput.trim() !== "") {
+      let q = Number(qtyInput.replace(",", "."));
+      if (!Number.isFinite(q) || q <= 0) q = 1;
+      const u: Unit = unitInput ?? defaultUnitFor(name);
+      if (u === "pcs") q = Math.max(1, Math.round(q));
+
+      next[existsIdx] = { ...next[existsIdx], detailed: true, qty: q, unit: u };
+    } else {
+      // без количества просто убедимся, что detailed=false
+      next[existsIdx] = { ...next[existsIdx], detailed: false, qty: undefined, unit: undefined };
     }
-    const next = [...items, { name, detailed: false }];
+
     setItems(next);
-    emitChange(next);
+    emit(next);
+
+    // reset
     setNameInput("");
     setQtyInput("");
+    setShowDetails(false);
+    setUnitInput(defaultUnitFor(name));
+    return;
+  }
+
+  // иначе добавляем новый элемент (как и раньше)
+  let nextItem: ProductQty = { name, detailed: false };
+  if (showDetails && qtyInput.trim() !== "") {
+    let q = Number(qtyInput.replace(",", "."));
+    if (!Number.isFinite(q) || q <= 0) q = 1;
+    const u: Unit = unitInput ?? defaultUnitFor(name);
+    if (u === "pcs") q = Math.max(1, Math.round(q));
+    nextItem = { name, detailed: true, qty: q, unit: u };
+  }
+
+  const next = [...items, nextItem];
+  setItems(next);
+  emit(next);
+
+  // reset
+  setNameInput("");
+  setQtyInput("");
+  setShowDetails(false);
+  setUnitInput(defaultUnitFor(name));
   };
 
-  const handleRemove = (name: string) => {
-    const next = items.filter((i) => norm(i.name) !== norm(name));
-    setItems(next);
-    emitChange(next);
+  // Обновить существующий тег по текущим вводам qty/unit
+  const applyDetailsToExisting = () => {
+  if (!showDetails) return;
+  const name = nameInput.trim();
+  if (!name) return;
+
+  const idx = items.findIndex((i) => norm(i.name) === norm(name));
+  if (idx < 0) return;
+
+  const v = qtyInput.trim();
+  if (!v) return; // не трогаем, если количества нет
+
+  let q = Number(v.replace(",", "."));
+  if (!Number.isFinite(q) || q <= 0) q = 1;
+
+  const u: Unit = unitInput ?? defaultUnitFor(name);
+  if (u === "pcs") q = Math.max(1, Math.round(q));
+
+  const next = [...items];
+  next[idx] = { ...next[idx], detailed: true, qty: q, unit: u };
+  setItems(next);
+  emit(next);
   };
 
-  const handleClearAll = () => {
-    setItems([]);
-    emitChange([]);
-    onClear?.();
-  };
+  useEffect(() => {
+  applyDetailsToExisting();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [qtyInput, unitInput]);
 
-  const toggleDetailed = (idx: number) => {
-    const next = [...items];
-    const it = next[idx];
-    if (!it.detailed) {
-      const unit = defaultUnitFor(it.name);
-      next[idx] = { ...it, detailed: true, unit, qty: 1 };
-    } else {
-      next[idx] = { ...it, detailed: false, qty: undefined, unit: undefined };
-    }
-    setItems(next);
-    emitChange(next);
-  };
 
-  const updateItem = (idx: number, patch: Partial<ProductQty>) => {
-    const next = [...items];
-    next[idx] = { ...next[idx], ...patch };
-    setItems(next);
-    emitChange(next);
-  };
 
-  const makeCacheKey = (arr: ProductQty[]) => {
-    const mapped = arr.map((i) => ({
-      n: norm(i.name),
-      d: !!i.detailed,
-      q: i.detailed ? Math.max(1, Number(i.qty) || 1) : undefined,
-      u: i.detailed ? i.unit : undefined,
-    }));
-    mapped.sort((a, b) => (a.n < b.n ? -1 : a.n > b.n ? 1 : 0));
-    return "recipes:" + mapped.map((i) => (i.d ? `${i.n}:${i.q}${i.u}` : i.n)).join("|");
-  };
 
   const onNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      handleAdd();
+      commitItem();
     }
   };
 
-  async function handleGenerate() {
-    if (items.length === 0 || submitting) return;
-    setSubmitting(true);
-    const key = makeCacheKey(items);
-    const names = items.map((i) => i.name);
-    const detailedItems = items
-      .filter((i) => i.detailed && i.unit)
-      .map((i) => {
-        let q = Number(i.qty);
-        if (!Number.isFinite(q) || q <= 0) q = 1;
-        if (i.unit === "pcs") q = Math.max(1, Math.round(q));
-        return { name: i.name.trim(), qty: q, unit: i.unit as Unit };
-      });
+  const removeAt = (idx: number) => {
+    const next = items.filter((_, i) => i !== idx);
+    setItems(next);
+    emit(next);
+  };
 
-    try {
-      try {
-        const cachedRaw = localStorage.getItem(key);
-        if (cachedRaw) {
-          const enriched = JSON.parse(cachedRaw);
-          sessionStorage.setItem("recipes_payload", JSON.stringify({ products: names, data: enriched }));
-          router.replace(`/recipes?items=${encodeURIComponent(names.join(","))}`);
-          return;
-        }
-      } catch {}
+  const clearAll = () => {
+    setItems([]);
+    emit([]);
+    onClear?.();
+  };
 
-      try {
-        track("recipes_requested", { mode: "default", productsCount: names.length });
-      } catch {}
+  // ── токены стилей
+  const inputBase =
+    "h-12 rounded-[18px] sm:rounded-[20px] border border-gray-300 bg-white px-4 " +
+    "text-[16px] leading-none text-[#1e1e1e] placeholder:text-gray-400 " +
+    "focus:outline-none focus:ring-2 focus:ring-gray-300";
 
-      sessionStorage.removeItem("recipes_payload");
-      const sid = getSessionId?.();
+  const neutralBtn =
+    "rounded-2xl border border-gray-300 bg-white hover:bg-gray-50 active:bg-gray-100 " +
+    "disabled:opacity-40 disabled:cursor-not-allowed";
 
-      const res = await fetch("/api/recipes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(sid ? { "x-session-id": sid } : {}) },
-        body: JSON.stringify({ products: names, items: detailedItems }),
-      });
+  return (
+    <section className="p-6 w-full space-y-4">
+      <h2 className="whitespace-nowrap text-[20px] sm:text-2xl font-extrabold tracking-tight text-[#1e1e1e] leading-tight">
+        Уточни список продуктов
+      </h2>
 
-      if (!res.ok) throw new Error(`Ошибка сервера (${res.status})`);
-      const json = await res.json();
+{/* ░░ ЗОНА ВВОДА (full-bleed на мобиле) ░░ */}
+<div className="-mx-6 sm:mx-0">
+  <div className="w-full rounded-[36px] sm:rounded-[48px] border border-gray-200 bg-white/90 shadow-sm px-3 py-3 sm:px-6 sm:py-5">
 
-      const withLead: RecipeWithLead[] = (json.recipes ?? []).map((r: RecipeDto, i: number) => ({
-        ...r,
-        lead: json?.trace?.leads?.[i] ?? undefined,
-      }));
-      const enriched = { ...json, recipes: withLead };
+    {/* Ряд 1: название + «+» */}
+    <div className="grid grid-cols-[1fr_auto] items-center gap-2.5 sm:gap-4">
+      <input
+        value={nameInput}
+        onChange={(e) => setNameInput(e.target.value)}
+        onKeyDown={onNameKeyDown}
+        placeholder="Например: огурец"
+        className={`${inputBase} min-w-0`}  // ← разрешаем сжатие
+        autoComplete="off"
+      />
+      <button
+        type="button"
+        onClick={commitItem}
+        disabled={!canAdd}
+        aria-label="Добавить"
+        className={`${neutralBtn} h-12 w-12 flex items-center justify-center shrink-0`} // ← не даём кнопке сжиматься
+      >
+        <Plus className="h-5 w-5 text-gray-800" />
+      </button>
+    </div>
 
-      try {
-        localStorage.setItem(key, JSON.stringify(enriched));
-      } catch {}
-      sessionStorage.setItem("recipes_payload", JSON.stringify({ products: names, data: enriched }));
-
-      router.replace(`/recipes?items=${encodeURIComponent(names.join(","))}`);
-    } catch (e) {
-      console.error(e);
-      alert("Не удалось получить рецепты. Попробуйте ещё раз.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-// ... импорт/типы оставь как есть выше
-// замени return на этот (остальной код файла – без изменений)
-
-return (
-  <section className="p-6 max-w-md mx-auto space-y-4">
-    {/* Заголовок */}
-    <h2 className="text-2xl font-extrabold tracking-tight text-[#1e1e1e]">
-      Уточни список продуктов
-    </h2>
+    {/* Триггер количества */}
+{!showDetails && (
+  <div className="mt-2 flex justify-center">
+    <button
+      type="button"
+      onClick={() => setShowDetails(true)}
+      aria-expanded={false}
+      className="inline-flex items-center gap-1.5 text-[15px] font-medium text-gray-500 hover:text-gray-700"
+    >
+      <span>количество</span>
+      <ChevronDown className="h-4 w-4 translate-y-[1px]" aria-hidden />
+    </button>
+  </div>
+)}
 
 
-    {/* Список продуктов */}
-    {items.length > 0 && (
-      <ul className="space-y-2">
-        {items.map((it, i) => (
-          <li
-            key={`${it.name}-${i}`}
-            className="rounded-2xl border bg-white shadow-sm p-3 space-y-3"
+
+
+    {/* Анимированный блок количества — ВНУТРИ карточки */}
+    <div
+      className={`overflow-hidden transition-[height] duration-300 ease-out ${showDetails ? "mt-2" : "mt-0"}`}
+      style={{ height: detailsHeight }}
+    >
+      <div
+        ref={detailsRef}
+        className={`grid items-center gap-2.5 sm:gap-4 grid-cols-2 sm:grid-cols-[1fr_128px] transition-opacity duration-300 ${showDetails ? "opacity-100" : "opacity-0"}`}
+      >
+        <input
+          value={qtyInput}
+          onChange={(e) => setQtyInput(e.target.value.replace(/[^\d.,]/g, ""))}
+          onKeyDown={(e) => e.key === "Enter" && commitItem()}
+          inputMode="decimal"
+          placeholder="кол-во"
+          className={`${inputBase} min-w-0`}
+        />
+
+        {/* Select: на мобиле занимает 50%, фикс ширина только с sm: */}
+        <div className="relative w-full sm:w-[128px] shrink-0">
+          <select
+            value={unitInput}
+            onChange={(e) => setUnitInput(e.target.value as Unit)}
+            className={`${inputBase} w-full pr-8 appearance-none text-center`}
           >
-            <div className="flex items-center gap-2">
-              <input
-                className="flex-1 rounded-lg border bg-white px-3 py-2 text-sm text-[#1e1e1e] placeholder:text-[#777] focus:outline-none focus:ring-2 focus:ring-gray-300"
-                value={it.name}
-                onChange={(e) => updateItem(i, { name: e.target.value })}
-              />
-              <button
-                type="button"
-                onClick={() => handleRemove(it.name)}
-                className="text-gray-400 hover:text-gray-600 transition p-1"
-                aria-label="Удалить"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+            <option value="pcs">шт</option>
+            <option value="g">г</option>
+            <option value="ml">мл</option>
+          </select>
+          <ChevronDown
+            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+            aria-hidden="true"
+          />
+        </div>
 
-            {/* Уточнение количества */}
+<div className="col-span-2">
+  <div className="mt-2 flex justify-center">
+    <button
+      type="button"
+      onClick={() => { applyDetailsToExisting(); setShowDetails(false); }}
+      aria-expanded={true}
+      className="inline-flex items-center gap-1.5 text-[15px] font-medium text-gray-500 hover:text-gray-700"
+    >
+      <span>скрыть</span>
+      <ChevronUp className="h-4 w-4 translate-y-[1px]" aria-hidden />
+    </button>
+  </div>
+</div>
+
+
+
+
+      </div>
+    </div>
+  </div>
+</div>
+
+      {/* ░░ Список продуктов ░░ */}
+      <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-2">
+        {items.map((it, i) => (
+          <span
+            key={`${it.name}-${i}`}
+            className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-sm"
+          >
+            <span className="text-gray-900 truncate max-w-[70vw] sm:max-w-none">
+              {it.name}
+              {it.detailed && it.qty
+                ? ` ${
+                    it.unit === "pcs" ? Math.round(it.qty) : it.qty
+                  } ${it.unit === "pcs" ? "шт" : it.unit}`
+                : ""}
+            </span>
             <button
               type="button"
-              onClick={() => toggleDetailed(i)}
-              aria-expanded={!!it.detailed}
-              className="flex w-full items-center gap-2 text-[15px] font-semibold text-gray-900"
+              onClick={() => removeAt(i)}
+              className="rounded-full px-1.5 py-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Удалить"
             >
-              <svg
-                className={`transition-transform ${it.detailed ? "rotate-180" : ""}`}
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#6b7280"
-                strokeWidth="2"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-              Уточнить количество
+              ×
             </button>
-
-            {it.detailed && (
-              <div className="grid grid-cols-[1fr_auto] gap-3 items-center">
-                <input
-                  type="number"
-                  min={1}
-                  step={it.unit === "pcs" ? 1 : 50}
-                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm text-[#1e1e1e] placeholder:text-[#777] focus:outline-none focus:ring-2 focus:ring-gray-300"
-                  value={it.qty === undefined ? "" : it.qty}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "") {
-                      updateItem(i, { qty: undefined });
-                      return;
-                    }
-                    const num = Number(v);
-                    if (!Number.isNaN(num)) updateItem(i, { qty: num });
-                  }}
-                  onBlur={() => {
-                    const current = items[i]?.qty;
-                    let nextQty =
-                      current === undefined ||
-                      Number.isNaN(Number(current)) ||
-                      Number(current) <= 0
-                        ? 1
-                        : Number(current);
-                    if (items[i]?.unit === "pcs") {
-                      nextQty = Math.max(1, Math.round(nextQty));
-                    }
-                    if (nextQty !== current) updateItem(i, { qty: nextQty });
-                  }}
-                  inputMode="numeric"
-                  placeholder="0"
-                />
-
-                <div className="seg">
-                  {(["g", "ml", "pcs"] as const).map((u) => (
-                    <button
-                      key={u}
-                      type="button"
-                      className="seg-btn"
-                      aria-pressed={(it.unit ?? defaultUnitFor(it.name)) === u}
-                      onClick={() => updateItem(i, { unit: u })}
-                    >
-                      {u === "g" ? "г" : u === "ml" ? "мл" : "шт"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </li>
+          </span>
         ))}
-      </ul>
-    )}
-
-    {/* Добавление продукта */}
-    <div className="flex items-end gap-3">
-      <div className="flex-1">
-        <input
-          type="text"
-          value={nameInput}
-          onChange={(e) => setNameInput(e.target.value)}
-          onKeyDown={onNameKeyDown}
-          placeholder="Например: огурец"
-          className="w-full rounded-xl border bg-white px-4 py-3 text-sm text-[#1e1e1e] placeholder:text-[#777]"
-          autoComplete="off"
-        />
       </div>
-      <button
-        type="button"
-        onClick={handleAdd}
-        disabled={!nameInput.trim()}
-        className="btn-soft shrink-0 whitespace-nowrap rounded-2xl px-6 py-3 text-[15px] font-semibold text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        <span className="inline-flex items-center gap-2">
-          <span className="text-xl leading-none">+</span> Добавить
-        </span>
-      </button>
-    </div>
 
-    {/* Кнопки действий */}
-    <div className="flex gap-3">
-      <button
-        type="button"
-        onClick={handleClearAll}
-        className="btn-soft rounded-2xl px-6 py-3 text-[15px] font-semibold text-gray-900"
-      >
-        <span className="inline-flex items-center gap-2">
-          <span className="text-base leading-none">✕</span> Очистить
-        </span>
-      </button>
-
-      {!hideAction && (
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={items.length === 0 || submitting}
-          className="btn-peach w-full rounded-[28px] px-6 py-3.5 font-semibold text-white focus:outline-none focus:ring-2 focus:ring-white/30 transition disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-busy={submitting}
-        >
-          {submitting ? "Генерируем рецепты…" : "Показать рецепты"}
-        </button>
-      )}
-    </div>
-  </section>
-);
-
+      {/* Если нужна кнопка очистки внутри панели — верни clearAll сюда. */}
+      {/* {!hideAction && ... } */}
+    </section>
+  );
 }

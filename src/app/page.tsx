@@ -59,7 +59,9 @@ export default function HomePage() {
     setManualMode(false);
   };
 
-  const compactPhoto = !isScanning && recognized.length > 0;
+  // схлопывать, если уже есть распознанные ИЛИ пользователь включил ручной ввод
+  const compactPhoto = !isScanning && (recognized.length > 0 || manualMode);
+
 
   const generateRecipes = async () => {
     setErrorMsg(null);
@@ -81,8 +83,8 @@ export default function HomePage() {
   };
 
   return (
-    <main className="p-6 max-w-md mx-auto space-y-6 text-center">
-      <h1 className="text-2xl font-extrabold tracking-tight text-[#1e1e1e]">
+    <main className="p-6 mx-auto space-y-6 text-center max-w-xl sm:max-w-2xl">
+      <h1 className="whitespace-nowrap text-[22px] sm:text-3xl md:text-4xl font-extrabold tracking-tight text-[#1e1e1e] leading-tight">
         <span>Что сегодня готовим, Шеф?</span>
       </h1>
 
