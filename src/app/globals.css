@@ -1,10 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Мягкий читаемый шрифт как на референсе */
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap");
 
-/* вариант для тёмной темы (можно убрать, если не нужна) */
+/* вариант для тёмной темы */
 @custom-variant dark (&:is(.dark *));
 
-/* сопоставляем названия цветов tailwind с CSS-переменными */
+/* сопоставляем tailwind-цвета с CSS-переменными */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -51,39 +53,74 @@
 
 /* светлая тема */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --bg: #ffffff;
+  --fg: #0a0a0a;
+  --muted: #f5f5f5;
+  --muted-fg: #6b7280;  /* gray-500/600 */
+  --border: #e5e7eb;    /* gray-200 */
 }
+
+/* Нейтральные карточки без «персика» и градиентов */
+.glass-card,
+.glass {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+
+.glass-border { border-color: var(--border); }
+/* было тёплое свечение — сделаем нейтральное */
+.glass-glow {
+  box-shadow: 0 12px 40px rgba(0,0,0,.06) !important;
+  /* никаких оранжевых теней/радиальных градиентов */
+}
+
+
+/* Камера и ореол – в серый */
+.camera-icon { color: #525252; }         /* gray-600 */
+.camera-wrap::before,
+.camera-wrap::after { display: none !important; } /* убираем пульсации/ореолы, если были */
+
+/* Нейтральные «мягкие» кнопки (вместо оранжевых) */
+.btn-soft {
+  background: #f5f5f5;           /* gray-100 */
+  color: #0a0a0a;
+  border: 1px solid #e5e7eb;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.btn-soft:hover {
+  background: #eeeeee;           /* чуть темнее */
+  border-color: #d1d5db;         /* gray-300 */
+}
+
+/* Сегменты единиц (g/ml/pcs) – серые */
+.seg {
+  display: inline-flex;
+  background: #f5f5f5;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 2px;
+}
+.seg-btn {
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #111827;               /* gray-900 */
+}
+.seg-btn[aria-pressed="true"] {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+/* ЕДИНСТВЕННАЯ оранжевая кнопка — CTA */
+.btn-peach {
+  background: linear-gradient(180deg, #f39a6a 0%, #e6865b 100%);
+  color: #fff;
+}
+.btn-peach:hover { filter: brightness(0.98); }
+.btn-peach:disabled { opacity: .4; }
+
+
 
 /* тёмная тема */
 .dark {
@@ -121,11 +158,10 @@
 }
 
 @layer base {
-  * {
-    @apply border-border; /* убрали outline-ring/50 — это невалидный класс */
-  }
+  * { @apply border-border; }
   body {
     @apply bg-background text-foreground;
+    font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
   }
 }
 
@@ -135,3 +171,152 @@
 
 /* приятнее тапы на iOS */
 * { -webkit-tap-highlight-color: rgba(0,0,0,0); }
+
+/* ===================== UTILITIES ===================== */
+@layer utilities {
+  /* ---------- BACKDROP (как на референсе) ---------- */
+  .app-gradient {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(1200px 800px at 12% 16%, rgba(255, 200, 168, .38), transparent 60%),
+      radial-gradient(900px 700px at 84% 12%, rgba(255, 230, 208, .45), transparent 60%),
+      radial-gradient(1100px 900px at 50% 100%, rgba(255, 214, 186, .42), transparent 60%),
+      linear-gradient(180deg, var(--peach-1) 0%, var(--peach-2) 48%, var(--peach-3) 100%);
+  }
+.app-gradient::before {
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(255,255,255,.25), transparent 40%),
+    radial-gradient(100% 120% at 100% 100%, rgba(255,255,255,.18), transparent 42%),
+    conic-gradient(from 200deg at 20% 0%, rgba(255,255,255,.04), transparent 25% 60%, rgba(255,255,255,.04) 80%, transparent 100%);
+  mix-blend-mode: screen;
+  animation: bg-shift 16s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+  @keyframes bg-shift {
+    0%   { transform: translateY(0);   filter: hue-rotate(0deg)   saturate(1); }
+    100% { transform: translateY(-1%); filter: hue-rotate(-6deg) saturate(1.05); }
+  }
+
+  /* ---------- UNIFIED GLASS CARD ---------- */
+  /* Совместимость: .glass и .glass-card — одно и то же */
+  .glass-card, .glass {
+    position: relative;
+    background: rgba(255,255,255,.78);
+    border: 1px solid rgba(255,255,255,.66);
+    border-radius: 24px;
+    -webkit-backdrop-filter: blur(22px) saturate(1.08);
+    backdrop-filter: blur(22px) saturate(1.08);
+    box-shadow:
+      0 24px 48px rgba(240, 154, 121, .18),
+      0 8px 18px rgba(240, 154, 121, .12),
+      inset 0 1px 0 rgba(255,255,255,.85);
+  }
+.glass-card::before, .glass::before {
+  content: "";
+  position: absolute; inset: 0; border-radius: inherit;
+  background:
+    radial-gradient(140% 120% at 10% 8%, rgba(255,255,255,.48), transparent 36%),
+    radial-gradient(120% 120% at 90% 92%, rgba(255,255,255,.22), transparent 42%);
+  pointer-events: none;
+}
+
+  /* совместимость со старым классом */
+  .glass-border { border-color: rgba(255,255,255,.66); }
+
+  /* ---------- PRIMARY CTA (персиковая) ---------- */
+  .btn-peach {
+    background: linear-gradient(135deg, var(--peach-4) 0%, var(--peach-5) 35%, var(--peach-6) 65%, var(--peach-4) 100%);
+    background-size: 200% 200%;
+    color: #fff;
+    box-shadow:
+      0 10px 28px rgba(244, 167, 120, .38),
+      0 3px 10px rgba(240, 154, 121, .28);
+    animation: gradient-move 6s ease infinite;
+  }
+  .btn-peach:hover { filter: brightness(1.02); }
+  .btn-peach:active { transform: translateY(1px) scale(.995); }
+  @keyframes gradient-move {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  /* ---------- Secondary pills (+ Добавить / × Очистить) ---------- */
+  .btn-soft {
+    background: rgba(255,255,255,.7);
+    border: 1px solid rgba(255,255,255,.55);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+    animation: soft-glow 3.4s ease-in-out infinite;
+  }
+  @keyframes soft-glow {
+    0%,100% {
+      box-shadow:
+        0 10px 24px rgba(244,167,120,.18),
+        0 3px 10px rgba(244,167,120,.12),
+        inset 0 1px 0 rgba(255,255,255,.8);
+    }
+    50% {
+      box-shadow:
+        0 14px 30px rgba(244,167,120,.28),
+        0 4px 12px rgba(244,167,120,.18),
+        inset 0 1px 0 rgba(255,255,255,.8);
+    }
+  }
+
+  /* ---------- Камера с аурой ---------- */
+  .camera-wrap {
+    position: relative;
+    width: 112px; height: 112px;
+    border-radius: 9999px;
+    background: radial-gradient(60px 60px at 50% 50%, rgba(255,255,255,.9), rgba(255,255,255,.6));
+    border: 2px solid rgba(255, 175, 143, .8);
+    box-shadow:
+      0 8px 30px rgba(244, 167, 120, .28),
+      inset 0 2px 8px rgba(255,255,255,.9);
+  }
+ .camera-wrap::after { display: none !important; }
+
+/* кольцо вокруг камеры – серое */
+.camera-wrap {
+  border: 2px solid #d1d5db !important;   /* gray-300 */
+  border-radius: 9999px;
+  padding: 18px;                           /* чтобы было «кольцо» */
+  box-shadow: none !important;             /* без персиковых теней */
+}
+  .camera-icon { color: #f28f6d; animation: cam-breathe 3s ease-in-out infinite; }
+  @keyframes aura   { 0%,100% { opacity:.6; transform:scale(1);} 50% { opacity:.9; transform:scale(1.05);} }
+  @keyframes cam-breathe { 0%,100% { transform:scale(1);} 50% { transform:scale(1.06);} }
+
+  /* ---------- Сегмент-контрол (г/мл/шт) ---------- */
+  .seg {
+    display: inline-flex; gap: 8px; padding: 6px; border-radius: 9999px;
+    background: rgba(255,255,255,.7);
+    border: 1px solid rgba(255,255,255,.55);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+  }
+  .seg-btn {
+    min-width: 44px; padding: 8px 12px; border-radius: 12px; font-weight: 700;
+    color: #9a6a56; letter-spacing: .02em;
+    transition: transform .15s ease, background .2s ease, color .2s ease;
+  }
+  .seg-btn[aria-pressed="true"] {
+    background: #ef8f6b; color: #fff;
+    box-shadow: 0 8px 18px rgba(239, 143, 107, .28), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  .seg-btn:active { transform: translateY(1px); }
+}
+
+/* мягкая вуаль сверху карточки для лучшего контраста текста */
+.glass-contrast::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,.28) 28%, transparent 60%);
+  pointer-events: none;
+}
