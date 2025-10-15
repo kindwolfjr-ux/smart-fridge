@@ -1,12 +1,18 @@
 // src/components/recipe-card.tsx
 "use client";
+
 import { useMemo, useState } from "react";
 import type { RecipeDto, IngredientDto, StepDto } from "@/types/recipe";
 
-export default function RecipeCard({ recipe }: { recipe: RecipeDto & { lead?: string } }) {
+export default function RecipeCard({
+  recipe,
+}: {
+  recipe: RecipeDto & { lead?: string };
+}) {
   const [open, setOpen] = useState(false);
 
-  const isFast = typeof recipe.time_min === "number" && recipe.time_min <= 10;
+  const isFast =
+    typeof recipe.time_min === "number" && recipe.time_min <= 10;
 
   const usedProducts = useMemo(() => {
     const uniq = Array.from(
@@ -16,16 +22,20 @@ export default function RecipeCard({ recipe }: { recipe: RecipeDto & { lead?: st
           .filter(Boolean)
       )
     );
-    return uniq.slice(0, 6); // компактный список
+    return uniq.slice(0, 6);
   }, [recipe.ingredients]);
 
   const copyRecipe = () => {
     const text = [
-      `${recipe.title} (${recipe.portion ?? "1 порция"}, ~${recipe.time_min ?? 15} мин)\n`,
+      `${recipe.title} (${recipe.portion ?? "1 порция"}, ~${
+        recipe.time_min ?? 15
+      } мин)\n`,
       "🧾 Ингредиенты:",
       ...recipe.ingredients.map(
         (i: IngredientDto) =>
-          `- ${i.name} — ${i.amount ?? ""} ${i.unit ?? ""}${i.note ? ` (${i.note})` : ""}`
+          `- ${i.name} — ${i.amount ?? ""} ${i.unit ?? ""}${
+            i.note ? ` (${i.note})` : ""
+          }`
       ),
       "\n🧭 Шаги:",
       ...recipe.steps.map(
@@ -40,14 +50,12 @@ export default function RecipeCard({ recipe }: { recipe: RecipeDto & { lead?: st
   };
 
   return (
-    <div className="p-4 rounded-2xl shadow bg-white space-y-2">
-      {/* Заголовок + время/порции + копирование */}
-      <div className="flex justify-between items-start gap-3">
+    <article className="rounded-3xl border border-gray-200 bg-white/90 shadow-sm p-4 sm:p-5">
+      {/* Заголовок + мета + копирование */}
+      <header className="flex justify-between items-start gap-3">
         <div className="min-w-0">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
+          <h3 className="text-lg sm:text-xl font-semibold text-[#1e1e1e] flex items-center gap-2">
             <span className="truncate">{recipe.title}</span>
-
-            {/* Бейдж "быстро" для рецептов ≤ 10 мин */}
             {isFast && (
               <span
                 className="inline-flex items-center rounded-full border border-green-500 text-green-600 px-2 py-0.5 text-xs whitespace-nowrap"
@@ -58,38 +66,40 @@ export default function RecipeCard({ recipe }: { recipe: RecipeDto & { lead?: st
             )}
           </h3>
 
-          <div className="text-sm text-gray-500 mt-1">
+          <p className="mt-1 text-xs sm:text-sm text-gray-500">
             ⏱ ~{recipe.time_min ?? 15} мин • {recipe.portion ?? "1 порция"}
-          </div>
+          </p>
         </div>
 
         <button
           onClick={copyRecipe}
-          className="text-sm text-blue-600 hover:underline shrink-0"
+          className="btn-soft rounded-2xl px-3 py-1.5 text-[13px] font-semibold text-gray-900 shrink-0"
           title="Скопировать рецепт"
           aria-label="Скопировать рецепт"
         >
-          📋
+          📋 Копировать
         </button>
-      </div>
+      </header>
 
-      {/* lead — вводный абзац */}
+      {/* Лид/подзаголовок */}
       {"lead" in recipe && recipe.lead && (
-        <p className="text-sm text-muted-foreground">{recipe.lead}</p>
+        <p className="mt-2 text-sm text-gray-600">{recipe.lead}</p>
       )}
 
-      {/* Короткий список использованных продуктов */}
+      {/* Используемые продукты */}
       {usedProducts.length > 0 && (
-        <p className="text-sm text-gray-600">
+        <p className="mt-2 text-sm text-gray-600">
           <span className="font-medium">Используются:</span>{" "}
           {usedProducts.join(", ")}
         </p>
       )}
 
       {/* Ингредиенты */}
-      <div className="mt-1">
-        <p className="font-medium">Ингредиенты:</p>
-        <ul className="list-disc list-inside text-sm text-gray-700">
+      <section className="mt-3">
+        <h4 className="text-sm font-semibold text-[#1e1e1e]">
+          Ингредиенты
+        </h4>
+        <ul className="mt-1 list-disc list-inside text-sm text-gray-700 space-y-0.5">
           {recipe.ingredients.map((i: IngredientDto, idx) => (
             <li key={idx}>
               {i.name}
@@ -99,30 +109,34 @@ export default function RecipeCard({ recipe }: { recipe: RecipeDto & { lead?: st
             </li>
           ))}
         </ul>
-      </div>
-
-      {/* Кнопка раскрытия шагов */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="mt-3 bg-gray-900 text-white text-sm px-3 py-1.5 rounded-md"
-      >
-        {open ? "Скрыть шаги" : "Показать шаги"}
-      </button>
+      </section>
 
       {/* Шаги */}
-      {open && (
-        <ol className="list-decimal list-inside text-sm space-y-1 mt-2">
-          {recipe.steps.map((s: StepDto) => (
-            <li key={s.order}>
-              <strong>{s.action}</strong>
-              {s.detail && ` — ${s.detail}`}
-              {s.duration_min && (
-                <span className="text-gray-500"> (~{s.duration_min} мин)</span>
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
+      <section className="mt-3">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="btn-soft w-full rounded-2xl px-4 py-2 text-[15px] font-semibold text-gray-900"
+        >
+          {open ? "Скрыть шаги" : "Показать шаги"}
+        </button>
+
+        {open && (
+          <ol className="mt-2 list-decimal list-inside text-sm space-y-1">
+            {recipe.steps.map((s: StepDto) => (
+              <li key={s.order}>
+                <strong>{s.action}</strong>
+                {s.detail && ` — ${s.detail}`}
+                {s.duration_min && (
+                  <span className="text-gray-500">
+                    {" "}
+                    (~{s.duration_min} мин)
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+    </article>
   );
 }

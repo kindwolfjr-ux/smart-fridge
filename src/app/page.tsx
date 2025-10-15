@@ -6,7 +6,6 @@ import UploadZone from "@/components/ui/upload-zone";
 import ConfirmProductsPanel from "@/components/confirm-products-panel";
 import ProgressButton from "@/components/ProgressButton";
 
-// Тип согласован с confirm-products-panel.tsx
 type ProductQty = {
   name: string;
   detailed?: boolean;
@@ -15,11 +14,8 @@ type ProductQty = {
 };
 
 export default function HomePage() {
-  // имена (для совместимости с ?items=)
   const [recognized, setRecognized] = useState<string[]>([]);
-  // полный формат (для опциональных количеств)
   const [recognizedQty, setRecognizedQty] = useState<ProductQty[]>([]);
-
   const [isScanning, setIsScanning] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [flashConfirm, setFlashConfirm] = useState(false);
@@ -39,7 +35,6 @@ export default function HomePage() {
   const handleRecognized = (products: string[]) => {
     const names = products.map((s) => s.trim()).filter(Boolean);
     setRecognized(names);
-    // стартово все без уточнения количества
     setRecognizedQty(names.map((n) => ({ name: n, detailed: false })));
     setIsScanning(false);
     setManualMode(false);
@@ -64,99 +59,98 @@ export default function HomePage() {
     setManualMode(false);
   };
 
-  // после сканирования и при наличии продуктов — уменьшаем блок с фото
-  const compactPhoto = !isScanning && recognized.length > 0;
+  // схлопывать, если уже есть распознанные ИЛИ пользователь включил ручной ввод
+  const compactPhoto = !isScanning && (recognized.length > 0 || manualMode);
 
-  // Переход на /recipes — без ожидания сервера
+
   const generateRecipes = async () => {
     setErrorMsg(null);
-
     const items = recognized.map((s) => s.trim()).filter(Boolean);
     if (items.length === 0) {
       throw new Error("Добавьте продукты, чтобы показать рецепт");
     }
-
-    // в сессию положим только уточнённые позиции
     try {
       const detailed = recognizedQty
         .filter((i) => i.detailed && typeof i.qty === "number" && i.unit)
-        .map((i) => ({
-          name: i.name.trim(),
-          qty: i.qty as number,
-          unit: i.unit as "g" | "ml" | "pcs",
-        }));
+        .map((i) => ({ name: i.name.trim(), qty: i.qty as number, unit: i.unit as "g" | "ml" | "pcs" }));
       sessionStorage.setItem("products_qty", JSON.stringify(detailed));
     } catch {}
-
     try {
       sessionStorage.removeItem("recipes_payload");
     } catch {}
-
     const q = encodeURIComponent(items.join(","));
     router.replace(`/recipes?items=${q}`);
   };
 
   return (
-      <main className="p-6 max-w-md mx-auto space-y-6 text-center">
-    <h1 className="text-xl font-semibold">Что сегодня готовим, Шеф?</h1>
+    <main className="p-6 mx-auto space-y-6 text-center max-w-xl sm:max-w-2xl">
+      <h1 className="whitespace-nowrap text-[22px] sm:text-3xl md:text-4xl font-extrabold tracking-tight text-[#1e1e1e] leading-tight">
+        <span>Что сегодня готовим, Шеф?</span>
+      </h1>
 
-    {/* Обёртка с плавным изменением высоты */}
-    <div
-      className={[
-        "transition-all duration-500 ease-out overflow-hidden",
-        compactPhoto ? "max-h-40 sm:max-h-48" : "max-h-[22rem] sm:max-h-[28rem]",
-      ].join(" ")}
-    >
-      <UploadZone
-        compact={compactPhoto}
-        onRecognized={handleRecognized}
-        onScanningChange={setIsScanning}
-      />
-       </div>
+      {/* Карточка загрузки фото — единое «стекло» */}
+      <div
+        className={[
+          "glass-card rounded-3xl",
+          "transition-all duration-500 ease-out overflow-hidden",
+          compactPhoto ? "p-3" : "p-0",
+        ].join(" ")}
+      >
+        <div
+          className={[
+            "transition-all duration-500 ease-out",
+            compactPhoto ? "max-h-40 sm:max-h-48" : "max-h-[22rem] sm:max-h-[28rem]",
+          ].join(" ")}
+        >
+          <UploadZone
+            compact={compactPhoto}
+            onRecognized={handleRecognized}
+            onScanningChange={setIsScanning}
+          />
+        </div>
+      </div>
 
-      {isScanning && <p className="text-sm text-gray-500">Распознаём продукты…</p>}
+      {isScanning && <p className="text-sm text-gray-600">Распознаём продукты…</p>}
 
       {shouldShowManualButton && (
         <button
           type="button"
           onClick={handleManualClick}
-          className="w-full rounded-xl border px-4 py-3 text-sm hover:bg-gray-50"
+          className="w-full rounded-2xl px-4 py-3 text-sm glass-card hover:shadow-md transition"
         >
           Написать продукты вручную
         </button>
       )}
 
-      {shouldShowPanel && (
-        <div
-          ref={confirmRef}
-          className={
-            flashConfirm
-              ? "rounded-xl ring-2 ring-black/10 animate-[pulse_0.6s_ease-in-out_2]"
-              : ""
-          }
+     {shouldShowPanel && (
+      <div
+        ref={confirmRef}
+        className={[
+          "glass rounded-3xl border glass-border p-4 text-left", // ❌ убрали glass-glow
+         "text-slate-900", // базовый тёмный цвет текста
+          flashConfirm ? "ring-2 ring-black/10 animate-[pulse_0.6s_ease-in-out_2]" : "",
+        ].join(" ")}
         >
+
+
+
           <ConfirmProductsPanel
             initialItems={recognized}
-            // имена для обратной совместимости родителя
             onChange={setRecognized}
-            // ВАЖНО: обёртка, чтобы тип функции совпал
             onChangeQty={(list) => setRecognizedQty(list)}
             onClear={handleClearPanel}
             hideAction
           />
 
-          {/* Прогресс-кнопка «Показать рецепт» */}
+          {/* CTA «Показать рецепт» — персиковый градиент */}
           <div className="mt-4">
             <ProgressButton
               onStart={generateRecipes}
               idleText="Показать рецепт"
-              onError={(e) =>
-                setErrorMsg(e instanceof Error ? e.message : "Что-то пошло не так")
-              }
+              onError={(e) => setErrorMsg(e instanceof Error ? e.message : "Что-то пошло не так")}
+              className="btn-peach w-full rounded-[28px] px-6 py-4 font-medium focus:outline-none focus:ring-2 focus:ring-white/30"
             />
-            {errorMsg && (
-              <p className="mt-2 text-sm text-red-500">Ошибка: {errorMsg}</p>
-            )}
+            {errorMsg && <p className="mt-2 text-sm text-red-500">Ошибка: {errorMsg}</p>}
           </div>
         </div>
       )}

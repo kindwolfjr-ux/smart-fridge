@@ -13,19 +13,22 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru">
-      <body className="min-h-dvh bg-white text-gray-900 safe-top safe-bottom">
-        {/* Инициализация аналитики: cookie uid + sessionId + auto app_open */}
+      <body className="relative min-h-dvh text-gray-900 safe-top safe-bottom overflow-x-hidden">
+        {/* === Анимированный градиентный фон === */}
+        <div className="app-gradient" />
+
+        {/* === Инициализация аналитики === */}
         <InitAnalytics />
 
-        {/* Модалка согласия — включит аналитику после клика "Разрешить" */}
+        {/* === Модалка согласия === */}
         <ConsentModal />
 
-        {/* Основной контент */}
-        <main className="mx-auto max-w-5xl px-4 py-6">
+        {/* === Основной контент === */}
+        <main className="relative z-10 mx-auto max-w-5xl px-4 py-6">
           {children}
         </main>
 
-        {/* Плавающая кнопка "Настройки" внизу справа */}
+        {/* === Плавающая кнопка "Настройки" === */}
         <FabSettings />
       </body>
     </html>
