@@ -6,6 +6,10 @@ import UploadZone from "@/components/ui/upload-zone";
 import ConfirmProductsPanel from "@/components/confirm-products-panel";
 import ProgressButton from "@/components/ProgressButton";
 
+// ▼ добавлено
+import FooterActions from "@/components/ui/FooterActions";
+import SettingsButton from "@/components/ui/SettingsButton";
+
 type ProductQty = {
   name: string;
   detailed?: boolean;
@@ -62,7 +66,6 @@ export default function HomePage() {
   // схлопывать, если уже есть распознанные ИЛИ пользователь включил ручной ввод
   const compactPhoto = !isScanning && (recognized.length > 0 || manualMode);
 
-
   const generateRecipes = async () => {
     setErrorMsg(null);
     const items = recognized.map((s) => s.trim()).filter(Boolean);
@@ -83,7 +86,7 @@ export default function HomePage() {
   };
 
   return (
-    <main className="p-6 mx-auto space-y-6 text-center max-w-xl sm:max-w-2xl">
+    <main className="p-6 pb-[calc(80px+env(safe-area-inset-bottom))] mx-auto space-y-6 text-center max-w-xl sm:max-w-2xl">
       <h1 className="whitespace-nowrap text-[22px] sm:text-3xl md:text-4xl font-extrabold tracking-tight text-[#1e1e1e] leading-tight">
         <span>Что сегодня готовим, Шеф?</span>
       </h1>
@@ -122,18 +125,15 @@ export default function HomePage() {
         </button>
       )}
 
-     {shouldShowPanel && (
-      <div
-        ref={confirmRef}
-        className={[
-          "glass rounded-3xl border glass-border p-4 text-left", // ❌ убрали glass-glow
-         "text-slate-900", // базовый тёмный цвет текста
-          flashConfirm ? "ring-2 ring-black/10 animate-[pulse_0.6s_ease-in-out_2]" : "",
-        ].join(" ")}
+      {shouldShowPanel && (
+        <div
+          ref={confirmRef}
+          className={[
+            "glass rounded-3xl border glass-border p-4 text-left",
+            "text-slate-900",
+            flashConfirm ? "ring-2 ring-black/10 animate-[pulse_0.6s_ease-in-out_2]" : "",
+          ].join(" ")}
         >
-
-
-
           <ConfirmProductsPanel
             initialItems={recognized}
             onChange={setRecognized}
@@ -154,6 +154,12 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* ▼ тихий футер с «Настройки» справа */}
+      <FooterActions>
+        <div />{/* пустой левый слот */}
+        <SettingsButton />
+      </FooterActions>
     </main>
   );
 }

@@ -3,7 +3,6 @@ import "./globals.css";
 import type { Metadata } from "next";
 import ConsentModal from "@/components/ConsentModal";
 import InitAnalytics from "@/components/InitAnalytics";
-import FabSettings from "@/components/FabSettings";
 
 export const metadata: Metadata = {
   title: "Smart Fridge",
@@ -28,8 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </main>
 
-        {/* Плавающая кнопка «Настройки» */}
-        <FabSettings />
+       
       </body>
     </html>
   );
