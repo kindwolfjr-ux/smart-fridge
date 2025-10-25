@@ -1,0 +1,44 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model RecipeGenerated {
+  id           String   @id @default(cuid())
+  userId       String?  // на будущее, пока без связей
+  products     Json
+  filters      Json
+  recipesJson  Json
+  createdAt    DateTime @default(now())
+}
+
+model SavedRecipe {
+  id             String   @id @default(cuid())
+  userId         String?
+  payloadJson    Json
+  customPhotoUrl String?
+  createdAt      DateTime @default(now())
+}
+
+model CookingSession {
+  id               String   @id @default(cuid())
+  userId           String?
+  savedRecipeId    String?
+  snapshotJson     Json
+  currentStepIndex Int      @default(0)
+  timersStateJson  Json
+  startedAt        DateTime @default(now())
+  finishedAt       DateTime?
+}
+
+model ShareLink {
+  id                  String   @id @default(cuid())
+  slug                String   @unique
+  recipeSnapshotJson  Json
+  createdAt           DateTime @default(now())
+}
