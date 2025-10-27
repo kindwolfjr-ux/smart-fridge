@@ -1,7 +1,8 @@
+// src/app/page.tsx
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import UploadZone from "@/components/ui/upload-zone";
 import ConfirmProductsPanel from "@/components/confirm-products-panel";
 import ProgressButton from "@/components/ProgressButton";
@@ -9,6 +10,7 @@ import ProgressButton from "@/components/ProgressButton";
 // ▼ добавлено
 import FooterActions from "@/components/ui/FooterActions";
 import SettingsButton from "@/components/ui/SettingsButton";
+import FiltersBar from "@/components/ui/FiltersBar";
 
 type ProductQty = {
   name: string;
@@ -27,6 +29,7 @@ export default function HomePage() {
 
   const confirmRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams(); // ▼ добавлено
 
   const revealPanelAndScroll = () => {
     setTimeout(() => {
@@ -81,8 +84,17 @@ export default function HomePage() {
     try {
       sessionStorage.removeItem("recipes_payload");
     } catch {}
-    const q = encodeURIComponent(items.join(","));
-    router.replace(`/recipes?items=${q}`);
+
+    // ▼ НОВОЕ: переносим выбранные фильтры из текущего URL на /recipes
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("items", items.join(",")); // CSV без encode — пусть читается как есть
+    // очищаем мусор по 4 ключам, оставляем только "включённые"
+    (["vegan", "halal", "noPork", "noSugar"] as const).forEach((k) => {
+      const v = params.get(k);
+      if (v !== "1" && v !== "true") params.delete(k);
+    });
+
+    router.replace(`/recipes?${params.toString()}`);
   };
 
   return (
@@ -124,6 +136,9 @@ export default function HomePage() {
           Написать продукты вручную
         </button>
       )}
+
+      {/* ▼ НОВОЕ: блок фильтров */}
+      <FiltersBar />
 
       {shouldShowPanel && (
         <div

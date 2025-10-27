@@ -1,3 +1,4 @@
+// src/app/recipes/page.tsx
 "use client";
 
 import { useMemo } from "react";
@@ -22,6 +23,14 @@ export default function RecipesPage() {
       .sort();
   }, [sp]);
 
+  // ▼ НОВОЕ: читаем фильтры из URL и передаем дальше
+  const filters = {
+    vegan: sp.get("vegan") === "1" || sp.get("vegan") === "true",
+    halal: sp.get("halal") === "1" || sp.get("halal") === "true",
+    noPork: sp.get("noPork") === "1" || sp.get("noPork") === "true",
+    noSugar: sp.get("noSugar") === "1" || sp.get("noSugar") === "true",
+  };
+
   if (products.length === 0) {
     return (
       <main className="p-6 pb-[calc(80px+env(safe-area-inset-bottom))] mx-auto space-y-6 text-center max-w-xl sm:max-w-2xl">
@@ -34,7 +43,6 @@ export default function RecipesPage() {
           </p>
         </section>
 
-        {/* футер остаётся, чтобы можно было уйти в настройки или на главную */}
         <FooterActions>
           <RestartButton />
           <SettingsButton />
@@ -49,15 +57,12 @@ export default function RecipesPage() {
         Ваши рецепты
       </h1>
 
-      {/* стеклянная зона контента — как на главной */}
       <section className="glass rounded-3xl border glass-border p-4 text-left text-slate-900">
-        {/* сам стрим рецептов */}
         <div className="grid gap-4">
-          <StreamedRecipesDemo products={products} hideTitle />
+          <StreamedRecipesDemo products={products} hideTitle filters={filters} />
         </div>
       </section>
 
-      {/* ▼ «Начать заново» слева, «Настройки» справа */}
       <FooterActions>
         <RestartButton />
         <SettingsButton />

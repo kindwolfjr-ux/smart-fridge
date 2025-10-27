@@ -1,10 +1,12 @@
+// src/app/api/recipes/route.ts
 import { cacheGet, cacheSet, makeRecipesKey } from "@/lib/cache";
 import { randomUUID } from "crypto";
 import type { RecipeDto } from "@/types/recipe";
 import OpenAI from "openai";
 import { NextRequest } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-server";
-import { anonIdFrom } from "@/lib/utils";
+// Supabase и anonId больше не используем
+// import { supabaseAdmin } from "@/lib/supabase-server";
+// import { anonIdFrom } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,9 +15,8 @@ export const runtime = "nodejs";
 // —— важное: версия кэша, чтобы снести старые записи
 const CACHE_VER = "fast-v2";
 
-// простая проверка UUID v4 (добавь рядом с остальными константами сверху файла)
-const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
+// простая проверка UUID v4 — использовалась для аналитики, удаляем
+// const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** ——— Утилиты ——— */
 
@@ -54,56 +55,6 @@ function safeJsonParse<T>(text: string): T | null {
     }
   }
 }
-
-/** ——— Вход и эвристика порций ——— */
-
-type InItem = string | { name: string; amount?: number | string; unit?: string };
-
-function normalizeInput(productsInput: unknown) {
-  const arr: InItem[] = Array.isArray(productsInput) ? (productsInput as InItem[]) : [];
-  const stock = arr
-    .map((x) =>
-      typeof x === "string"
-        ? { name: x.trim().toLowerCase() }
-        : {
-            name: String((x as any)?.name ?? "").trim().toLowerCase(),
-            amount:
-              typeof (x as any)?.amount === "string"
-                ? Number(String((x as any).amount).replace(",", "."))
-                : (x as any)?.amount,
-            unit: (x as any)?.unit ? String((x as any).unit).trim().toLowerCase() : undefined,
-          }
-    )
-    .filter((x) => x.name);
-
-  const names = Array.from(new Set(stock.map((x) => x.name))).sort();
-  return { stock, names };
-}
-
-function estimateServingsFromStock(
-  stock: { name: string; amount?: number; unit?: string }[]
-): number | undefined {
-  const isGram = (u?: string) => u && /(г|гр|грамм)/i.test(u);
-  const isMl = (u?: string) => u && /(мл)/i.test(u);
-
-  const sumBy = (pred: (n: string) => boolean) =>
-    stock
-      .filter((x) => (isGram(x.unit) || isMl(x.unit)) && typeof x.amount === "number" && pred(x.name))
-      .reduce((acc, x) => acc + (x.amount ?? 0), 0);
-
-  const proteinG = sumBy((n) => /(мяс|куриц|говяд|свин|индейк|филе|фарш|рыб|тунец|лосос|язык)/i.test(n));
-  const pastaG = sumBy((n) => /(паст|спагет|макарон)/i.test(n));
-  const grainG = sumBy((n) => /(рис|гречк|перлов|пшён|пшено|булгур|кус-кус|овсян)/i.test(n));
-  const potatoG = sumBy((n) => /(картоф)/i.test(n));
-
-  if (proteinG > 0) return Math.max(1, Math.round(proteinG / 180));
-  if (pastaG > 0) return Math.max(1, Math.round(pastaG / 90));
-  if (grainG > 0) return Math.max(1, Math.round(grainG / 80));
-  if (potatoG > 0) return Math.max(1, Math.round(potatoG / 200));
-  return undefined;
-}
-
-/** ——— Промпты ——— */
 
 const SYSTEM_PROMPT = `
 Ты — кулинарный помощник. Сгенерируй РОВНО 3 рецепта из продуктов пользователя.
@@ -167,23 +118,50 @@ const SYSTEM_FAST_ONE = `
 }
 `.trim();
 
-function userPrompt(
-  products: string[],
-  stock: { name: string; amount?: number; unit?: string }[],
-  guessedServings?: number
-) {
-  const stockLines = stock
-    .map((s) => `- ${s.name}${typeof s.amount === "number" ? `: ${s.amount}` : ""}${s.unit ? ` ${s.unit}` : ""}`)
-    .join("\n");
+type InItem = string | { name: string; amount?: number | string; unit?: string };
 
-  return [
-    `Продукты пользователя: ${products.join(", ")}`,
-    stockLines ? "\nС учётом количеств:\n" + stockLines : "",
-    guessedServings ? `\nЕсли не уверены, ориентируйтесь на ${guessedServings} порции.`.replace("gu", "g") : "",
-    "\nВерни JSON ровно с 3 рецептами по требованиям из system.",
-  ]
-    .join("")
-    .trim();
+function normalizeInput(productsInput: unknown) {
+  const arr: InItem[] = Array.isArray(productsInput) ? (productsInput as InItem[]) : [];
+  const stock = arr
+    .map((x) =>
+      typeof x === "string"
+        ? { name: x.trim().toLowerCase() }
+        : {
+            name: String((x as any)?.name ?? "").trim().toLowerCase(),
+            amount:
+              typeof (x as any)?.amount === "string"
+                ? Number(String((x as any).amount).replace(",", "."))
+                : (x as any)?.amount,
+            unit: (x as any)?.unit ? String((x as any).unit).trim().toLowerCase() : undefined,
+          }
+    )
+    .filter((x) => x.name);
+
+  const names = Array.from(new Set(stock.map((x) => x.name))).sort();
+  return { stock, names };
+}
+
+function estimateServingsFromStock(
+  stock: { name: string; amount?: number; unit?: string }[]
+): number | undefined {
+  const isGram = (u?: string) => u && /(г|гр|грамм)/i.test(u);
+  const isMl = (u?: string) => u && /(мл)/i.test(u);
+
+  const sumBy = (pred: (n: string) => boolean) =>
+    stock
+      .filter((x) => (isGram(x.unit) || isMl(x.unit)) && typeof x.amount === "number" && pred(x.name))
+      .reduce((acc, x) => acc + (x.amount ?? 0), 0);
+
+  const proteinG = sumBy((n) => /(мяс|куриц|говяд|свин|индейк|филе|фарш|рыб|тунец|лосос|язык)/i.test(n));
+  const pastaG = sumBy((n) => /(паст|спагет|макарон)/i.test(n));
+  const grainG = sumBy((n) => /(рис|гречк|перлов|пшён|пшено|булгур|кус-кус|овсян)/i.test(n));
+  const potatoG = sumBy((n) => /(картоф)/i.test(n));
+
+  if (proteinG > 0) return Math.max(1, Math.round(proteinG / 180));
+  if (pastaG > 0) return Math.max(1, Math.round(pastaG / 90));
+  if (grainG > 0) return Math.max(1, Math.round(grainG / 80));
+  if (potatoG > 0) return Math.max(1, Math.round(potatoG / 200));
+  return undefined;
 }
 
 /** ——— Типы ответа модели ——— */
@@ -213,39 +191,6 @@ function isFastEnough(r?: ModelRecipe): boolean {
   return total >= 7 && total <= 10 && stepsCnt > 0 && stepsCnt <= 5 && ingsCnt > 0 && ingsCnt <= 8 && !banned.test(text);
 }
 
-async function regenerateFastRecipe(
-  client: OpenAI,
-  model: string,
-  base: string[],
-  stock: { name: string; amount?: number; unit?: string }[],
-  guessedServings?: number
-): Promise<ModelRecipe | null> {
-  const stockLines = stock
-    .map((s) => `- ${s.name}${typeof s.amount === "number" ? `: ${s.amount}` : ""}${s.unit ? ` ${s.unit}` : ""}`)
-    .join("\n");
-
-  const user = [
-    `Продукты пользователя: ${base.join(", ")}`,
-    stockLines ? "\nС учётом количеств:\n" + stockLines : "",
-    guessedServings ? `\nЕсли не уверены, ориентируйтесь на ${guessedServings} порции.` : "",
-    "\nВерни ровно 1 быстрый рецепт в JSON по требованиям из system.",
-  ]
-    .join("")
-    .trim();
-
-  const resp = await client.chat.completions.create({
-    model,
-    temperature: 0.4,
-    messages: [
-      { role: "system", content: SYSTEM_FAST_ONE },
-      { role: "user", content: user },
-    ],
-  });
-
-  const text = resp.choices?.[0]?.message?.content ?? "{}";
-  return safeJsonParse<ModelRecipe>(text);
-}
-
 /** ——— Маппер в наш RecipeDto ——— */
 function mapToDto(model: ModelRecipe[], guessedServings?: number): RecipeDto[] {
   return model.slice(0, 3).map((r, i) => {
@@ -267,9 +212,8 @@ function mapToDto(model: ModelRecipe[], guessedServings?: number): RecipeDto[] {
     });
 
     const computedTotal =
-  (r.time?.total ?? ((r.time?.prep ?? 0) + (r.time?.cook ?? 0))) ||
-  (steps.length ? steps.length * 3 : 15);
-
+      (r.time?.total ?? ((r.time?.prep ?? 0) + (r.time?.cook ?? 0))) ||
+      (steps.length ? steps.length * 3 : 15);
 
     const isSecond = i === 1;
     const totalMin = isSecond ? Math.min(Math.max(7, computedTotal), 10) : computedTotal;
@@ -282,6 +226,10 @@ function mapToDto(model: ModelRecipe[], guessedServings?: number): RecipeDto[] {
 
     return { id: uuid(), title, portion: servingsStr, time_min: totalMin, ingredients, steps };
   });
+}
+
+function parseBool(v: string | null): boolean {
+  return v === "1" || v === "true";
 }
 
 /** ——— Хэндлеры ——— */
@@ -297,6 +245,25 @@ export async function POST(req: NextRequest) {
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
 
+  // читаем фильтры из URL-параметров
+  const url = new URL(req.url);
+  const filters = {
+    vegan: parseBool(url.searchParams.get("vegan")),
+    halal: parseBool(url.searchParams.get("halal")),
+    noPork: parseBool(url.searchParams.get("noPork")),
+    noSugar: parseBool(url.searchParams.get("noSugar")),
+  };
+
+  // формируем дополнительные системные ограничения под фильтры
+  const filtersSystem = (() => {
+    const lines: string[] = [];
+    if (filters.vegan) lines.push("— Полностью исключи продукты животного происхождения; без мяса, рыбы, молочного, яиц, желатина и т.п.");
+    if (filters.halal) lines.push("— Соответствуй Halal: без свинины, крови, алкоголя; мясо — только допустимое.");
+    if (filters.noPork) lines.push("— Полностью исключи свинину и её производные.");
+    if (filters.noSugar) lines.push("— Не добавляй сахар и сладкие сиропы (мёд допустим только если это не считается сахаром пользователем; лучше избегать).");
+    return lines.length ? ("Дополнительные требования (фильтры):\n" + lines.join("\n")) : "";
+  })();
+
   let body: unknown = {};
   try {
     body = await req.json();
@@ -310,8 +277,9 @@ export async function POST(req: NextRequest) {
   const { stock, names } = normalizeInput(productsInput);
   const base = names.length ? names : ["яйца", "лук", "шампиньоны"];
 
-  // ——— КЭШ c версией
-  const cacheKey = `${makeRecipesKey(base)}::${CACHE_VER}`;
+  // ——— КЭШ c учётом фильтров
+  const filtersKey = ["ve", Number(!!filters.vegan), "ha", Number(!!filters.halal), "np", Number(!!filters.noPork), "ns", Number(!!filters.noSugar)].join("");
+  const cacheKey = `${makeRecipesKey(base)}::${CACHE_VER}::${filtersKey}`;
 
   // 1) попробуем взять из кэша, но только если 2-й рецепт быстрый
   try {
@@ -336,13 +304,16 @@ export async function POST(req: NextRequest) {
   let usageCompletion = 0;
 
   try {
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...(filtersSystem ? [{ role: "system", content: filtersSystem }] as const : []),
+      { role: "user", content: userPrompt(base, stock, guessedServings) },
+    ];
+
     const resp = await client.chat.completions.create({
       model,
       temperature: 0.6,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt(base, stock, guessedServings) },
-      ],
+      messages,
     });
 
     const text = resp.choices?.[0]?.message?.content ?? "{}";
@@ -355,7 +326,6 @@ export async function POST(req: NextRequest) {
       modelRecipes = data.recipes;
       leads = modelRecipes.map((r) => r.lead).filter((s): s is string => Boolean(s));
 
-      // Проверяем 2-й рецепт; если не fast — перегенерим только его
       if (!isFastEnough(modelRecipes[1])) {
         const fastOne = await regenerateFastRecipe(client, model, base, stock, guessedServings).catch(() => null);
         if (fastOne && isFastEnough(fastOne)) modelRecipes[1] = fastOne;
@@ -366,10 +336,8 @@ export async function POST(req: NextRequest) {
     /* упадём на фолбэк ниже */
   }
 
-  // Фолбэк
-if (dtoRecipes.length !== 3) {
-  const mk = (title: string, time_min: number): RecipeDto => {
-    return {
+  if (dtoRecipes.length !== 3) {
+    const mk = (title: string, time_min: number): RecipeDto => ({
       id: uuid(),
       title,
       portion: `${(guessedServings ?? 2)} ${
@@ -386,20 +354,19 @@ if (dtoRecipes.length !== 3) {
         { order: 2, action: "Обжарить", detail: "на сковороде на среднем огне", duration_min: 4 },
         { order: 3, action: "Довести", detail: "посолить, подать", duration_min: 3 },
       ],
-    };
-  };
+    });
 
-  dtoRecipes = [
-    mk(`Базовый рецепт: ${base.slice(0, 3).join(", ")}`, 15),
-    mk("На скорую руку", 9),
-    mk(`Интересный вариант: ${base.slice(0, 3).join(", ")}`, 20),
-  ];
-}
-
+    dtoRecipes = [
+      mk(`Базовый рецепт: ${base.slice(0, 3).join(", ")}`, 15),
+      mk("На скорую руку", 9),
+      mk(`Интересный вариант: ${base.slice(0, 3).join(", ")}`, 20),
+    ];
+  }
 
   const result = {
     ok: true,
     products: base,
+    filters,
     recipes: dtoRecipes,
     trace: { router: "app", ts: startedAt, model, leads },
   };
@@ -408,44 +375,63 @@ if (dtoRecipes.length !== 3) {
     await cacheSet(cacheKey, result, 60 * 60 * 24);
   } catch {}
 
-  // ✅ серверная аналитика: token_spent
-  // ✅ серверная аналитика: token_spent (реальный usage + валидный session_id)
-try {
-  // uid из куки (если нет — сгенерим), в anonId прогоняем твоей функцией
-  const rawUid = req.cookies.get("uid")?.value ?? randomUUID();
-  const anonId = anonIdFrom(rawUid);
-
-  // сессия приходит с клиента в x-session-id; если не UUID v4 — генерим новый
-  const sidHeader = req.headers.get("x-session-id") || "";
-  const sessionId = uuidV4.test(sidHeader) ? sidHeader : randomUUID();
-
-  const latencyMs = Date.now() - t0;
-  const totalTokens = (usagePrompt || 0) + (usageCompletion || 0);
-
-  await supabaseAdmin.from("events").insert({
-    ts: new Date().toISOString(),
-    anon_user_id: anonId,
-    session_id: sessionId, // гарантированно UUID v4
-    name: "token_spent",
-    payload: {
-      provider: "OpenAI",
-      model,
-      input_tokens: usagePrompt,
-      output_tokens: usageCompletion,
-      total_tokens: totalTokens,
-      latency_ms: latencyMs,
-      router: "app/api/recipes", // удобно для фильтрации (опционально)
-    },
-    ua: "server", // если колонка есть и nullable — запишется
-    // ip опускаем (пусть null)
-  });
-} catch (e) {
-  // не ломаем ответ пользователю, если аналитика не записалась
-  console.error("analytics token_spent failed:", e);
-}
-
+  // Аналитика в Supabase отключена
+  // (раньше тут был insert в таблицу events)
 
   return new Response(JSON.stringify(result), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
   });
+}
+
+// ——— вспомогательные функции ———
+function userPrompt(
+  products: string[],
+  stock: { name: string; amount?: number; unit?: string }[],
+  guessedServings?: number
+) {
+  const stockLines = stock
+    .map((s) => `- ${s.name}${typeof s.amount === "number" ? `: ${s.amount}` : ""}${s.unit ? ` ${s.unit}` : ""}`)
+    .join("\n");
+
+  return [
+    `Продукты пользователя: ${products.join(", ")}`,
+    stockLines ? "\nС учётом количеств:\n" + stockLines : "",
+    guessedServings ? `\nЕсли не уверены, ориентируйтесь на ${guessedServings} порции.` : "",
+    "\nВерни JSON ровно с 3 рецептами по требованиям из system.",
+  ]
+    .join("")
+    .trim();
+}
+
+async function regenerateFastRecipe(
+  client: OpenAI,
+  model: string,
+  base: string[],
+  stock: { name: string; amount?: number; unit?: string }[],
+  guessedServings?: number
+) {
+  const stockLines = stock
+    .map((s) => `- ${s.name}${typeof s.amount === "number" ? `: ${s.amount}` : ""}${s.unit ? ` ${s.unit}` : ""}`)
+    .join("\n");
+
+  const user = [
+    `Продукты пользователя: ${base.join(", ")}`,
+    stockLines ? "\nС учётом количеств:\n" + stockLines : "",
+    guessedServings ? `\nЕсли не уверены, ориентируйтесь на ${guessedServings} порции.` : "",
+    "\nВерни ровно 1 быстрый рецепт в JSON по требованиям из system.",
+  ]
+    .join("")
+    .trim();
+
+  const resp = await client.chat.completions.create({
+    model,
+    temperature: 0.4,
+    messages: [
+      { role: "system", content: SYSTEM_FAST_ONE },
+      { role: "user", content: user },
+    ],
+  });
+
+  const text = resp.choices?.[0]?.message?.content ?? "{}";
+  return safeJsonParse<ModelRecipe>(text);
 }
