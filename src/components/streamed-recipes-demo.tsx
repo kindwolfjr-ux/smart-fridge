@@ -4,12 +4,16 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useStreamedRecipe } from "@/lib/useStreamedRecipe";
 
+// оставим тип для совместимости на будущее (сейчас не используем)
+type Filters = { vegan?: boolean; halal?: boolean; noPork?: boolean; noSugar?: boolean };
+
 type Props = {
   products: string[];
   hideTitle?: boolean; // можно передать, чтобы скрыть внутренний заголовок
+  filters?: Filters;   // пока не используем (хук не принимает)
 };
 
-export default function StreamedRecipesDemo({ products, hideTitle = false }: Props) {
+export default function StreamedRecipesDemo({ products, hideTitle = false, filters: _filters }: Props) {
   const p = useMemo(
     () => products.map((s) => s.trim()).filter(Boolean),
     [products]
@@ -26,6 +30,7 @@ export default function StreamedRecipesDemo({ products, hideTitle = false }: Pro
     if (p.length === 0) return;
     startedRef.current = true;
 
+    // хук сейчас не знает про filters — запускаем как раньше
     a.start({ products: p, variant: "basic" });
     b.start({ products: p, variant: "creative" });
   }, [p, a, b]);
